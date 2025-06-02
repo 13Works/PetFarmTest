@@ -3,6 +3,10 @@ local API = ReplicatedStorage:WaitForChild("API")
 
 local LocalPlayer = game:GetService("Players").LocalPlayer
 
+-- Load external modules using HttpGet and loadstring
+local TaskPlanner = loadstring(game:HttpGet(('https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/TaskPlanner.lua'), true))()
+local PlanFormatter = loadstring(game:HttpGet(('https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/PlanFormatter.lua'), true))()
+
 local SmartFurnitureMap = {}
 
 local AILMENT_TO_FURNITURE_MODEL_MAP = {
@@ -597,13 +601,58 @@ while task.wait(1) do
             print("PetFarm is ACTIVE (checked at " .. os.date("%X") .. ")")
         end
         
-        local AllPetsAilments = GetCurrentAilments()
+        local AllPetsAilmentsData = GetCurrentAilments() -- This returns [{unique="id", ailments={"kind1", "kind2"}}]
         
-        if #AllPetsAilments > 0 then
-            print(os.date("%X") .. " - Current Pet Ailments Report:")
-            for _, PetData in ipairs(AllPetsAilments) do
-                print(string.format("  Pet Unique ID: %s, Ailments: [%s]", PetData.unique, table.concat(PetData.ailments, ", ")))
+        if #AllPetsAilmentsData > 0 then
+            -- Print raw detected ailments first
+            print(os.date("%X") .. " - Raw Detected Pet Ailments Report:")
+            for _, PetRawData in ipairs(AllPetsAilmentsData) do
+                print(string.format("  Pet Unique ID: %s, Ailments: [%s]", PetRawData.unique, table.concat(PetRawData.ailments, ", ")))
             end
+            print("---") -- Separator
+
+            -- Now, process and print plans for each pet
+            local PlannerAilmentCategories = TaskPlanner:GetAilmentCategories() -- Get categories once
+
+            for _, PetRawData in ipairs(AllPetsAilmentsData) do
+                -- Prepare PetData for TaskPlanner input
+                local PetDataForPlanner = {
+                    unique = PetRawData.unique,
+                    ailments = {
+                        location = {},
+                        feeding = {},
+                        playful = {},
+                        static = {},
+                        hybrid = {},
+                        meta_tasks = {},
+                        unknown = {}
+                    }
+                }
+
+                for _, AilmentName in ipairs(PetRawData.ailments) do
+                    local FoundCategory = false
+                    for CategoryName, CategoryData in pairs(PlannerAilmentCategories) do
+                        if type(CategoryData) == "table" and CategoryData[AilmentName] then
+                            table.insert(PetDataForPlanner.ailments[CategoryName], AilmentName)
+                            FoundCategory = true
+                            break 
+                        end
+                    end
+                    if not FoundCategory then
+                        table.insert(PetDataForPlanner.ailments.unknown, AilmentName)
+                    end
+                end
+                
+                -- Generate and Print Plan
+                if TaskPlanner and PlanFormatter then
+                    print(string.format("Generating plan for Pet: %s", PetDataForPlanner.unique))
+                    local GeneratedPlan = TaskPlanner:GenerateTaskPlan(PetDataForPlanner, true)
+                    PlanFormatter.Print(GeneratedPlan, PetDataForPlanner.unique, PlannerAilmentCategories)
+                else
+                    warn("TaskPlanner or PlanFormatter not loaded correctly. Cannot generate or print plan.")
+                end
+            end
+
         else
             if LoopCounter % 10 == 0 then 
                  print(os.date("%X") .. " - No current pet ailments detected for any pet.")
