@@ -4,6 +4,23 @@ local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = game:GetService("Players").LocalPlayer
 
+-- Load Fsys and EquippedPets module
+local Fsys = ReplicatedStorage:FindFirstChild("Fsys")
+local EquippedPetsModule = nil
+if Fsys then
+    local loadSuccess, module = pcall(function()
+        return require(Fsys).load("EquippedPets")
+    end)
+    if loadSuccess and module then
+        EquippedPetsModule = module
+        print("EquippedPets module loaded successfully.")
+    else
+        warn("Failed to load EquippedPets module:", module) -- 'module' here would be error message from pcall
+    end
+else
+    warn("Fsys module loader not found in ReplicatedStorage. EquippedPets module cannot be loaded.")
+end
+
 -- Load external modules using HttpGet and loadstring
 local TaskPlanner = loadstring(game:HttpGet(('https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/TaskPlanner.lua'), true))()
 local PlanFormatter = loadstring(game:HttpGet(('https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/PlanFormatter.lua'), true))()
@@ -51,16 +68,67 @@ local function FindFirstThrowableToyInList(OwnedToysTable)
 end
 
 local function GetPetUniqueIdString(PetModel)
-    -- STUB: Assumes PetModel.unique contains the string ID as seen in API examples.
-    -- Adjust if the unique ID is stored differently (e.g., PetModel.Name, or another property).
-    if PetModel and PetModel.unique and type(PetModel.unique) == "string" then
-        return PetModel.unique
-    elseif PetModel and PetModel.Name then
-        warn("GetPetUniqueIdString: PetModel.unique not found or not a string, using PetModel.Name ('" .. PetModel.Name .. "') as a fallback. This might not be the correct format for PetObjectAPI.")
-        return PetModel.Name -- Fallback, may not be the correct ID format like "2_xxxx"
+    if not PetModel then
+        warn("GetPetUniqueIdString: Called with a nil PetModel.")
+        -- The caller (e.g., VerifyAilmentExists) checks for "stub_pet_unique_id_error".
+        -- Returning this specific error string maintains consistency.
+        return "stub_pet_unique_id_error"
     end
-    warn("GetPetUniqueIdString: Could not determine unique ID for PetModel.")
-    return "stub_pet_unique_id_error"
+
+    -- Attempt 1: Use EquippedPetsModule if available and pet is equipped by local player
+    -- This is preferred as PetModels in this script are often sourced via this module.
+    if EquippedPetsModule then
+        local EquippedWrappers = EquippedPetsModule.get_my_equipped_char_wrappers()
+        if EquippedWrappers then
+            for _, Wrapper in ipairs(EquippedWrappers) do
+                if Wrapper.char == PetModel then -- Direct model instance comparison
+                    if Wrapper.pet_unique and type(Wrapper.pet_unique) == "string" then
+                        -- Successfully found ID via EquippedPetsModule
+                        return Wrapper.pet_unique
+                    else
+                        -- Found the PetModel in the wrapper, but its pet_unique is invalid.
+                        -- Warn and let the function fall through to other methods.
+                        warn(string.format("GetPetUniqueIdString: PetModel '%s' found in EquippedPetsModule, but its 'pet_unique' property is missing or not a string. Trying other methods.", PetModel.Name or "Unnamed"))
+                    end
+                end
+            end
+            -- If loop finishes, PetModel was not found among currently equipped pets known to EquippedPetsModule.
+            -- This could happen if the PetModel is from another source (e.g., another player's pet, a world spawn not tied to local player's wrappers).
+        else
+            -- This case might indicate an issue with EquippedPetsModule itself or its state.
+            warn("GetPetUniqueIdString: EquippedPetsModule.get_my_equipped_char_wrappers() returned nil or an empty list. Cannot check module for ID.")
+        end
+    else
+        -- EquippedPetsModule not loaded; this might be normal in some environments or script setups.
+        -- The function will proceed to try direct property access on the PetModel.
+        -- No warning here to avoid spam if module is intentionally absent.
+    end
+
+    -- Attempt 2: Check for a direct 'unique' property on the PetModel itself
+    -- This was the original stub's primary logic and serves as a good general fallback.
+    if PetModel.unique and type(PetModel.unique) == "string" then
+        return PetModel.unique
+    end
+
+    -- Attempt 3: Fallback to PetModel.Name if it's a string
+    -- This is often not the correct ID format for APIs, so a warning is important.
+    if PetModel.Name and type(PetModel.Name) == "string" then
+        warn(string.format("GetPetUniqueIdString: Using PetModel.Name ('%s') as fallback for unique ID. This may not be the correct format for API calls.", PetModel.Name))
+        return PetModel.Name
+    end
+
+    -- All attempts failed to find a string unique ID
+    local petIdentifierDescription = "an unknown PetModel instance"
+    if PetModel.Name and type(PetModel.Name) == "string" then
+        petIdentifierDescription = string.format("PetModel named '%s'", PetModel.Name)
+    elseif type(PetModel) == "Instance" then
+        petIdentifierDescription = string.format("PetModel instance '%s'", PetModel:GetFullName())
+    elseif PetModel then
+         petIdentifierDescription = string.format("PetModel (type: %s, tostring: %s)", type(PetModel), tostring(PetModel))
+    end
+
+    warn(string.format("GetPetUniqueIdString: Could not determine a string unique ID for %s using any available method.", petIdentifierDescription))
+    return "stub_pet_unique_id_error" -- Consistent error string for callers
 end
 
 local function IsToyEquippedByPlayer(ToyItemToVerify)
@@ -106,9 +174,47 @@ local function FindFirstAilmentFurniture(AilmentName)
     return nil
 end
 
+-- Updated VerifyAilmentExists function
 function VerifyAilmentExists(PetModel, AilmentName)
-  -- Stub
-  return false
+    if not PetModel then
+        warn("VerifyAilmentExists: PetModel is nil.")
+        return false
+    end
+    if not AilmentName then
+        warn("VerifyAilmentExists: AilmentName is nil.")
+        return false
+    end
+
+    local PetUniqueId = GetPetUniqueIdString(PetModel) 
+    if not PetUniqueId or PetUniqueId == "stub_pet_unique_id_error" then
+        warn("VerifyAilmentExists: Could not get a valid Unique ID for PetModel: " .. PetModel.Name .. ". Cannot verify ailment.")
+        return false
+    end
+
+    local ClientDataModule = require(ReplicatedStorage.ClientModules.Core.ClientData)
+    local PlayerData = ClientDataModule.get_data()[LocalPlayer.Name]
+
+    if not PlayerData or 
+       not PlayerData.ailments_manager or 
+       not PlayerData.ailments_manager.ailments then
+        warn("VerifyAilmentExists: Could not find ailment data path for LocalPlayer ('" .. LocalPlayer.Name .. "') in ClientData.")
+        return false
+    end
+
+    local AllPetsAilmentInfo = PlayerData.ailments_manager.ailments
+    local PetSpecificAilmentsInfo = AllPetsAilmentInfo[PetUniqueId]
+
+    if PetSpecificAilmentsInfo and type(PetSpecificAilmentsInfo) == "table" then
+        for _, AilmentDataEntry in pairs(PetSpecificAilmentsInfo) do
+            if type(AilmentDataEntry) == "table" and AilmentDataEntry.kind == AilmentName then
+                print(string.format("VerifyAilmentExists: Ailment '%s' FOUND for pet '%s'.", AilmentName, PetUniqueId))
+                return true
+            end
+        end
+    end
+    
+    print(string.format("VerifyAilmentExists: Ailment '%s' NOT FOUND for pet '%s'.", AilmentName, PetUniqueId))
+    return false
 end
 
 -- Find the first piece of furniture that a pet can sit on
@@ -593,31 +699,94 @@ local function GetCurrentAilments()
   return PetAilmentsResult
 end
 
--- [[ HELPER FUNCTION TO GET PET MODEL - USER TO REFINE ]] --
+-- Updated GetPetModelByUniqueId function
 local function GetPetModelByUniqueId(PetUniqueId)
-    -- STUB: Assumes pets are direct children of workspace.Pets and their Name or a StringValue child named "UniqueId" matches.
-    -- Adjust this to your actual pet storage and identification method.
-    local PetsContainer = workspace:FindFirstChild("Pets")
-    if not PetsContainer then
-        warn("GetPetModelByUniqueId: workspace.Pets container not found.")
+    if not EquippedPetsModule then
+        warn("GetPetModelByUniqueId: EquippedPetsModule is not loaded. Cannot fetch pet model.")
         return nil
     end
 
-    for _, PetInstance in ipairs(PetsContainer:GetChildren()) do
-        if PetInstance:IsA("Model") then
-            if PetInstance.Name == PetUniqueId then
-                return PetInstance
-            end
-            local IdValue = PetInstance:FindFirstChild("UniqueId")
-            if IdValue and IdValue:IsA("StringValue") and IdValue.Value == PetUniqueId then
-                return PetInstance
+    if not PetUniqueId then
+        warn("GetPetModelByUniqueId: PetUniqueId is nil.")
+        return nil
+    end
+
+    local wrapper = EquippedPetsModule.get_wrapper_from_unique(PetUniqueId, LocalPlayer)
+
+    if wrapper then
+        local PetModel = wrapper.char
+        if PetModel and PetModel:IsA("Model") then
+            -- print("GetPetModelByUniqueId: Found model for " .. PetUniqueId .. ":", PetModel:GetFullName())
+            return PetModel
+        else
+            warn("GetPetModelByUniqueId: Wrapper found for " .. PetUniqueId .. ", but .char (PetModel) is missing or not a Model.")
+            return nil
+        end
+    else
+        -- This warning might be spammy if pets are legitimately not equipped or if ID is for an unequipped pet.
+        -- Consider if this level of warning is always needed or if it should be more subtle for non-critical failures.
+        -- For now, keeping it to indicate that the system tried and failed for this ID.
+        warn("GetPetModelByUniqueId: No wrapper found for unique ID: " .. PetUniqueId .. ". Pet might not be equipped or ID is invalid.")
+        return nil
+    end
+end
+
+local function GetMyEquippedPetModels()
+    if not EquippedPetsModule then
+        warn("GetMyEquippedPetModels: EquippedPetsModule is not loaded. Cannot fetch pet models.")
+        return {}
+    end
+
+    local EquippedWrappers = EquippedPetsModule.get_my_equipped_char_wrappers()
+    local PetModels = {}
+
+    if not EquippedWrappers or #EquippedWrappers == 0 then
+        -- print("GetMyEquippedPetModels: No pet char wrappers found for local player. No pets appear to be equipped.")
+        return PetModels
+    end
+
+    -- print("GetMyEquippedPetModels: Found", #EquippedWrappers, "equipped pet wrapper(s).")
+
+    for _, Wrapper in ipairs(EquippedWrappers) do
+        local PetModel = Wrapper.char
+        if PetModel and PetModel:IsA("Model") then
+            table.insert(PetModels, PetModel)
+        else
+            local PetUniqueId = Wrapper.pet_unique
+            if PetUniqueId then
+                warn("GetMyEquippedPetModels: Wrapper found for unique:", PetUniqueId, "- but pet model (char) is missing or invalid.")
+            else
+                warn("GetMyEquippedPetModels: Wrapper found but pet model (char) is missing/invalid and no unique ID on wrapper.")
             end
         end
     end
-    warn("GetPetModelByUniqueId: Could not find PetModel for Unique ID: " .. PetUniqueId)
-    return nil
+    return PetModels
 end
--- [[ END HELPER FUNCTION ]] --
+
+local function GetMyEquippedPetUniques()
+    if not EquippedPetsModule then
+        warn("GetMyEquippedPetUniques: EquippedPetsModule is not loaded. Cannot fetch pet unique IDs.")
+        return {}
+    end
+
+    local EquippedWrappers = EquippedPetsModule.get_my_equipped_char_wrappers()
+    local PetUniqueIds = {}
+
+    if not EquippedWrappers or #EquippedWrappers == 0 then
+        -- print("GetMyEquippedPetUniques: No pet char wrappers found for local player. No pets appear to be equipped.")
+        return PetUniqueIds
+    end
+
+    for _, Wrapper in ipairs(EquippedWrappers) do
+        local PetUniqueId = Wrapper.pet_unique
+        if PetUniqueId and type(PetUniqueId) == "string" then
+            table.insert(PetUniqueIds, PetUniqueId)
+        else
+            warn("GetMyEquippedPetUniques: Wrapper found but pet_unique ID is missing or not a string.")
+        end
+    end
+    return PetUniqueIds
+end
 
 -- [[ FUNCTION TO PROCESS TASK PLAN - TO BE EXPANDED ]] --
 local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentActions)
