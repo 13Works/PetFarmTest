@@ -31,8 +31,8 @@ local AILMENT_TO_FURNITURE_MODEL_MAP = {
     thirsty = { "AilmentsRefresh2024CheapWaterBowl", "ailments_refresh_2024_cheap_water_bowl" },
     hungry = { "AilmentsRefresh2024CheapWaterBowl", "ailments_refresh_2024_cheap_water_bowl" },
     toilet = { "AilmentsRefresh2024LitterBox", "ailments_refresh_2024_litter_box" },
-    dirty = { "ModernShower", "modern_shower" },
-    sleepy = { "BasicCrib", "basic_crib" }
+    dirty = { "ModernShower", "modernshower" },
+    sleepy = { "BasicCrib", "basiccrib" }
 }
 
 -- [[ STUB FUNCTIONS FOR "catch" AILMENT - USER TO IMPLEMENT/REFINE ]] --
