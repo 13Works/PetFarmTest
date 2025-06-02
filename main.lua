@@ -593,6 +593,115 @@ local function GetCurrentAilments()
   return PetAilmentsResult
 end
 
+-- [[ HELPER FUNCTION TO GET PET MODEL - USER TO REFINE ]] --
+local function GetPetModelByUniqueId(PetUniqueId)
+    -- STUB: Assumes pets are direct children of workspace.Pets and their Name or a StringValue child named "UniqueId" matches.
+    -- Adjust this to your actual pet storage and identification method.
+    local PetsContainer = workspace:FindFirstChild("Pets")
+    if not PetsContainer then
+        warn("GetPetModelByUniqueId: workspace.Pets container not found.")
+        return nil
+    end
+
+    for _, PetInstance in ipairs(PetsContainer:GetChildren()) do
+        if PetInstance:IsA("Model") then
+            if PetInstance.Name == PetUniqueId then
+                return PetInstance
+            end
+            local IdValue = PetInstance:FindFirstChild("UniqueId")
+            if IdValue and IdValue:IsA("StringValue") and IdValue.Value == PetUniqueId then
+                return PetInstance
+            end
+        end
+    end
+    warn("GetPetModelByUniqueId: Could not find PetModel for Unique ID: " .. PetUniqueId)
+    return nil
+end
+-- [[ END HELPER FUNCTION ]] --
+
+-- [[ FUNCTION TO PROCESS TASK PLAN - TO BE EXPANDED ]] --
+local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentActions)
+    print(string.format("--- Starting Task Plan Execution for Pet: %s (%s) ---", PetModel.Name, PetUniqueId))
+    if not GeneratedPlan or #GeneratedPlan == 0 then
+        print("ProcessTaskPlan: No tasks in the generated plan for " .. PetUniqueId .. ".")
+        return
+    end
+
+    for TaskIndex, TaskData in ipairs(GeneratedPlan) do
+        print(string.format("  [%d/%d] Attempting Task: Type='%s', Ailment/Desc='%s', Time='%s'", 
+            TaskIndex, #GeneratedPlan, TaskData.type, TaskData.ailment or TaskData.description or "N/A", tostring(TaskData.time or TaskData.adjustedTime or 0)))
+
+        local ActionToExecute = nil
+        local ActionRequiresTargetCFrame = false
+        local AilmentNameForAction = TaskData.ailment
+
+        if TaskData.type == "location" or TaskData.type == "instant" or TaskData.type == "remaining" then
+            -- These types often use TaskData.ailment as the direct key in AilmentActions
+            AilmentNameForAction = TaskData.ailment
+            if AllAilmentActions[AilmentNameForAction] then 
+                ActionToExecute = AllAilmentActions[AilmentNameForAction]
+                if AilmentNameForAction == "sleepy" or AilmentNameForAction == "dirty" or AilmentNameForAction == "toilet" then
+                    ActionRequiresTargetCFrame = true
+                end
+            end
+        elseif TaskData.type == "location_bonus" then 
+            AilmentNameForAction = TaskData.ailment 
+            -- For location bonus, decide if it's standard or smart (e.g. hungry)
+            if AllAilmentActions[AilmentNameForAction] and type(AllAilmentActions[AilmentNameForAction]) == "table" then -- e.g. hungry.Smart
+                ActionToExecute = AllAilmentActions[AilmentNameForAction].Smart -- Default to Smart for bonus items like bowls
+                ActionRequiresTargetCFrame = true -- Smart feeding/drinking needs a CFrame
+            elseif AllAilmentActions[AilmentNameForAction] then -- simple bonus like pet_me
+                ActionToExecute = AllAilmentActions[AilmentNameForAction]
+            end
+        else
+           AilmentNameForAction = TaskData.ailment or TaskData.description -- Fallback for other types if they use ailment name
+           if AllAilmentActions[AilmentNameForAction] then
+                ActionToExecute = AllAilmentActions[AilmentNameForAction]
+           end
+        end
+        
+        if ActionToExecute then
+            local TargetCFrame = nil
+            if ActionRequiresTargetCFrame then
+                if PetModel and PetModel.PrimaryPart then
+                    TargetCFrame = PetModel.PrimaryPart.CFrame * CFrame.new(0,0,-3) -- Placeholder CFrame
+                    print(string.format("    Using placeholder TargetCFrame for '%s' action near pet.", AilmentNameForAction))
+                else
+                    warn("    Cannot determine TargetCFrame for action ", AilmentNameForAction, ": PetModel or PrimaryPart missing.")
+                    -- Consider skipping or erroring if CFrame is essential
+                    goto next_task -- Skip this task if CFrame essential and not available
+                end
+            end
+
+            print("    Executing action for: " .. (AilmentNameForAction or TaskData.type))
+            local Success, ErrorMsg
+            if ActionRequiresTargetCFrame then
+                Success, ErrorMsg = pcall(ActionToExecute, PetModel, TargetCFrame, true) -- WaitForCompletion = true
+            else
+                 -- Handle actions like hungry/thirsty.Standard or location teleports
+                if type(ActionToExecute) == "table" and ActionToExecute.Standard then -- e.g. hungry, thirsty
+                     warn("    ProcessTaskPlan: For ", AilmentNameForAction, ", Standard method selected (or no CFrame method). Requires PetModel, WaitForCompletion.")
+                     Success, ErrorMsg = pcall(ActionToExecute.Standard, PetModel, true)
+                else -- Direct function call (e.g. sick, salon, bored, catch)
+                    Success, ErrorMsg = pcall(ActionToExecute, PetModel, true) -- WaitForCompletion = true
+                end
+            end
+
+            if not Success then
+                warn(string.format("    Error executing action '%s': %s", AilmentNameForAction or TaskData.type, tostring(ErrorMsg)))
+            else
+                print("    Action completed for: " .. (AilmentNameForAction or TaskData.type))
+            end
+            task.wait(1) -- Small delay between tasks
+        else
+            warn("    No specific action found in AilmentActions for task type: ", TaskData.type, " with ailment/desc: ", TaskData.ailment or TaskData.description or "N/A")
+        end
+        ::next_task::
+    end
+    print("--- Finished Task Plan Execution for Pet: " .. PetUniqueId .. " ---")
+end
+-- [[ END FUNCTION TO PROCESS TASK PLAN ]] --
+
 -- Main loop to monitor _G.PetFarm
 local currentInstanceLoopId = HttpService:GenerateGUID(false)
 _G.PetFarmLoopInstanceId = currentInstanceLoopId
@@ -649,6 +758,14 @@ while _G.PetFarmLoopInstanceId == currentInstanceLoopId and task.wait(1) do
                     print(string.format("Generating plan for Pet: %s (Loop ID: %s)", PetDataForPlanner.unique, currentInstanceLoopId))
                     local GeneratedPlan = TaskPlanner:GenerateTaskPlan(PetDataForPlanner, true)
                     PlanFormatter.Print(GeneratedPlan, PetDataForPlanner.unique, PlannerAilmentCategories)
+                    
+                    -- Attempt to execute the plan
+                    local PetModel = GetPetModelByUniqueId(PetDataForPlanner.unique)
+                    if PetModel then
+                        ProcessTaskPlan(PetDataForPlanner.unique, PetModel, GeneratedPlan, AilmentActions)
+                    else
+                        warn("Could not find PetModel for " .. PetDataForPlanner.unique .. ". Skipping plan execution for this pet.")
+                    end
                 else
                     warn("TaskPlanner or PlanFormatter not loaded correctly. Cannot generate or print plan. (Loop ID: " .. currentInstanceLoopId .. ")")
                 end
