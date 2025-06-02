@@ -667,9 +667,8 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
                     TargetCFrame = PetModel.PrimaryPart.CFrame * CFrame.new(0,0,-3) -- Placeholder CFrame
                     print(string.format("    Using placeholder TargetCFrame for '%s' action near pet.", AilmentNameForAction))
                 else
-                    warn("    Cannot determine TargetCFrame for action ", AilmentNameForAction, ": PetModel or PrimaryPart missing.")
-                    -- Consider skipping or erroring if CFrame is essential
-                    goto next_task -- Skip this task if CFrame essential and not available
+                    warn("    Cannot determine TargetCFrame for action ", AilmentNameForAction, ": PetModel or PrimaryPart missing. Skipping this task.")
+                    continue -- Replaced goto next_task with continue
                 end
             end
 
@@ -696,7 +695,6 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
         else
             warn("    No specific action found in AilmentActions for task type: ", TaskData.type, " with ailment/desc: ", TaskData.ailment or TaskData.description or "N/A")
         end
-        ::next_task::
     end
     print("--- Finished Task Plan Execution for Pet: " .. PetUniqueId .. " ---")
 end
@@ -708,7 +706,7 @@ _G.PetFarmLoopInstanceId = currentInstanceLoopId
 print("PetFarmOfficial.luau loop started with ID: " .. currentInstanceLoopId .. ". To stop this specific loop instance if script is re-run, simply re-run the script. To pause operations, set _G.PetFarm = false.")
 
 local LoopCounter = 0
-while _G.PetFarmLoopInstanceId == currentInstanceLoopId and task.wait(1) do
+while _G.PetFarmLoopInstanceId == currentInstanceLoopId and task.wait(5) do
     LoopCounter = LoopCounter + 1
     if _G.PetFarm == true then
         if LoopCounter % 5 == 0 then 
