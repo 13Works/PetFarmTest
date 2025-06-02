@@ -28,11 +28,11 @@ local PlanFormatter = loadstring(game:HttpGet(('https://raw.githubusercontent.co
 local SmartFurnitureMap = {}
 
 local AILMENT_TO_FURNITURE_MODEL_MAP = {
-    thirsty = "AilmentsRefresh2024CheapWaterBowl",
-    hungry = "AilmentsRefresh2024CheapWaterBowl",
-    toilet = "AilmentsRefresh2024LitterBox",
-    dirty = "ModernShower",
-    sleepy = "BasicCrib"
+    thirsty = { "AilmentsRefresh2024CheapWaterBowl", "ailments_refresh_2024_cheap_water_bowl" },
+    hungry = { "AilmentsRefresh2024CheapWaterBowl", "ailments_refresh_2024_cheap_water_bowl" },
+    toilet = { "AilmentsRefresh2024LitterBox", "ailments_refresh_2024_litter_box" },
+    dirty = { "ModernShower", "modern_shower" },
+    sleepy = { "BasicCrib", "basic_crib" }
 }
 
 -- [[ STUB FUNCTIONS FOR "catch" AILMENT - USER TO IMPLEMENT/REFINE ]] --
@@ -159,18 +159,44 @@ local function FindFirstAilmentFurniture(AilmentName)
     end
 
     for _, FurnitureInstance in ipairs(FurnitureFolder:GetChildren()) do
-        if FurnitureInstance:IsA("Model") or FurnitureInstance:IsA("BasePart") then -- Ensure it's a physical item
+        if FurnitureInstance:IsA("Model") or FurnitureInstance:IsA("BasePart") then
             local LowercaseFurnitureName = string.lower(FurnitureInstance.Name)
             for _, Keyword in ipairs(Keywords) do
                 if string.find(LowercaseFurnitureName, string.lower(Keyword)) then
-                    warn(string.format("FindFirstAilmentFurniture: Found generic furniture '%s' for ailment '%s' using keyword '%s'.", FurnitureInstance.Name, AilmentName, Keyword))
-                    return FurnitureInstance
+                    local UniqueName = FurnitureInstance:GetAttribute("furniture_unique")
+                    if UniqueName and type(UniqueName) == "string" then
+                        local VacantSeatInstance = nil
+                        local UseBlocks = FurnitureInstance:FindFirstChild("UseBlocks")
+                        if UseBlocks then
+                            local Seats = UseBlocks:GetChildren()
+                            if #Seats > 0 then
+                                VacantSeatInstance = Seats[1]
+                                -- warn(string.format("FindFirstAilmentFurniture: Found UseBlocks and took first seat '%s' for '%s'", VacantSeatInstance.Name, UniqueName))
+                            else
+                                -- warn(string.format("FindFirstAilmentFurniture: Found UseBlocks for '%s', but it has no children (seats).", UniqueName))
+                            end
+                        else
+                           -- warn(string.format("FindFirstAilmentFurniture: Furniture '%s' (Model: %s) does not have a 'UseBlocks' child.", UniqueName, FurnitureInstance.Name))
+                        end
+
+                        warn(string.format("FindFirstAilmentFurniture: Found generic furniture '%s' (Model: %s) for ailment '%s' using keyword '%s'. VacantSeat: %s", 
+                            UniqueName, FurnitureInstance.Name, AilmentName, Keyword, VacantSeatInstance and VacantSeatInstance.Name or "nil"))
+                        
+                        return {
+                            name = UniqueName, 
+                            model = FurnitureInstance, 
+                            vacant_seat = VacantSeatInstance
+                        }
+                    else
+                        -- warn(string.format("FindFirstAilmentFurniture: Potential match '%s' for ailment '%s' using keyword '%s', but it is missing a valid 'furniture_unique' string attribute. Skipping.", FurnitureInstance.Name, AilmentName, Keyword))
+                        -- Continue to the next keyword or furniture instance
+                    end
                 end
             end
         end
     end
     
-    warn("FindFirstAilmentFurniture: No suitable owned furniture found for ailment: " .. AilmentName)
+    warn("FindFirstAilmentFurniture: No suitable owned furniture found for ailment: " .. AilmentName .. " (that has a valid 'furniture_unique' attribute and matches keywords).")
     return nil
 end
 
@@ -231,16 +257,52 @@ local function GetSmartFurniture()
         return FoundItems
     end
 
-    for Ailment, ModelName in pairs(AILMENT_TO_FURNITURE_MODEL_MAP) do
-        local Item = FurnitureFolder:FindFirstChild(ModelName)
-        if Item then
-            FoundItems[Ailment] = Item
+    for Ailment, FurnitureData in pairs(AILMENT_TO_FURNITURE_MODEL_MAP) do
+        local ModelName = FurnitureData[1] -- ModelName is the first element
+        local ItemModel = FurnitureFolder:FindFirstChild(ModelName)
+        if ItemModel then
+            local UniqueName = ItemModel:GetAttribute("furniture_unique")
+            if UniqueName and type(UniqueName) == "string" then
+                local VacantSeatInstance = nil
+                if ItemModel.UseBlocks then
+                    local Seats = ItemModel.UseBlocks:GetChildren()
+                    if #Seats > 0 then
+                        VacantSeatInstance = Seats[1]
+                    end
+                end
+                FoundItems[Ailment] = {
+                    name = UniqueName,
+                    model = ItemModel,
+                    vacant_seat = VacantSeatInstance
+                }
+                -- print(string.format("GetSmartFurniture: Found and processed smart furniture '%s' (Model: %s) for ailment '%s'", UniqueName, ModelName, Ailment))
+            else
+                warn(string.format("GetSmartFurniture: Smart furniture model '%s' found for ailment '%s', but it is missing a valid 'furniture_unique' string attribute. Skipping.", ModelName, Ailment))
+            end
         end
     end
     return FoundItems
 end
 
 local function InitializeSmartFurniture()
+    local ClientDataModule = require(ReplicatedStorage.ClientModules.Core.ClientData)
+    local FurnitureDB = require(ReplicatedStorage.ClientDB.Housing.FurnitureDB) -- Added FurnitureDB require
+
+    local PlayerData = ClientDataModule.get_data()[LocalPlayer.Name]
+    local CurrentMoney = nil
+    if PlayerData and PlayerData.money then
+        CurrentMoney = PlayerData.money
+    else
+        warn("InitializeSmartFurniture: Could not retrieve player money from ClientData. Cannot perform cost checks.")
+        -- Decide if we proceed without money check or halt. For now, proceed but items might fail to buy if cost > 0 and money is effectively 0.
+    end
+
+    if not FurnitureDB then
+        warn("InitializeSmartFurniture: FurnitureDB module not found or failed to load. Cannot perform cost checks or determine item costs.")
+        -- If FurnitureDB is critical and missing, we might want to not even attempt purchases.
+        -- For now, it will try to queue them, but they might fail if API expects valid kinds that DB would confirm.
+    end
+
     local CurrentSmartFurnitureItems = GetSmartFurniture()
     local FurnitureFolder = workspace.HouseInteriors and workspace.HouseInteriors:FindFirstChild("furniture")
 
@@ -251,18 +313,38 @@ local function InitializeSmartFurniture()
     end
 
     local ItemsToBuy = {}
-    local ItemKindsToModelNames = {}
+    local ItemKindsToModelNames = {} -- Maps KindName to ModelName
 
-    for Ailment, ModelName in pairs(AILMENT_TO_FURNITURE_MODEL_MAP) do
+    for Ailment, FurnitureData in pairs(AILMENT_TO_FURNITURE_MODEL_MAP) do
         if not CurrentSmartFurnitureItems[Ailment] then
-            local KindName = ModelName
-            KindName = KindName:gsub("([A-Z]+)([A-Z][a-z])", "%1_%2")
-            KindName = KindName:gsub("([a-z%d])([A-Z])", "%1_%2")
-            KindName = KindName:lower()
+            local ModelName = FurnitureData[1] -- ModelName is the first element
+            local KindName = FurnitureData[2]  -- KindName is the second element (unique key for FurnitureDB and purchase API)
             
-            table.insert(ItemsToBuy, { kind = KindName, properties = { cframe = CFrame.new(0, -1000, 0) } })
-            ItemKindsToModelNames[KindName] = ModelName
-            warn(string.format("InitializeSmartFurniture: Queuing purchase for '%s' (model: %s) for ailment '%s'.", KindName, ModelName, Ailment))
+            local CanAfford = true -- Assume can afford if money check is not possible or item is free
+            local Cost = 0
+
+            if FurnitureDB and CurrentMoney ~= nil then -- Only check cost if DB and money are available
+                local ItemDBInfo = FurnitureDB[KindName]
+                if ItemDBInfo and ItemDBInfo.cost then
+                    Cost = ItemDBInfo.cost
+                    if CurrentMoney < Cost then
+                        CanAfford = false
+                        warn(string.format("InitializeSmartFurniture: Cannot afford '%s' (model: %s) for ailment '%s'. Cost: %d, Player Money: %d.", KindName, ModelName, Ailment, Cost, CurrentMoney))
+                    end
+                else
+                    warn(string.format("InitializeSmartFurniture: Could not find cost information for '%s' (model: %s) in FurnitureDB. Assuming it's free or data is missing.", KindName, ModelName))
+                    -- If not in DB, it might be an old/invalid item or truly free. Proceed with caution.
+                end
+            elseif CurrentMoney == nil and FurnitureDB and FurnitureDB[KindName] and FurnitureDB[KindName].cost and FurnitureDB[KindName].cost > 0 then
+                 warn(string.format("InitializeSmartFurniture: Player money not available, but '%s' (model: %s) has a cost in DB. Purchase might fail.", KindName, ModelName))
+                 -- CanAfford remains true, letting the purchase attempt proceed and potentially fail server-side if money is an issue.
+            end
+
+            if CanAfford then
+                table.insert(ItemsToBuy, { kind = KindName, properties = { cframe = CFrame.new(0, -1000, 0) } })
+                ItemKindsToModelNames[KindName] = ModelName -- Map the provided KindName to its ModelName
+                warn(string.format("InitializeSmartFurniture: Queuing purchase for '%s' (model: %s, cost: %d) for ailment '%s'. Player Money: %s", KindName, ModelName, Cost, Ailment, CurrentMoney or 'Unknown'))
+            end
         end
     end
 
@@ -282,19 +364,39 @@ local function InitializeSmartFurniture()
         task.wait() 
 
         for _, BoughtItemInfo in ipairs(ItemsToBuy) do
-            local ModelNameToFind = ItemKindsToModelNames[BoughtItemInfo.kind]
+            local ModelNameToFind = ItemKindsToModelNames[BoughtItemInfo.kind] -- Look up ModelName using the KindName
             if ModelNameToFind then
-                local NewItem = FurnitureFolder:FindFirstChild(ModelNameToFind)
-                if NewItem then
-                    for Ailment, MN in pairs(AILMENT_TO_FURNITURE_MODEL_MAP) do
-                        if MN == ModelNameToFind and not CurrentSmartFurnitureItems[Ailment] then
-                            CurrentSmartFurnitureItems[Ailment] = NewItem
-                            warn(string.format("InitializeSmartFurniture: Successfully found purchased item '%s' for ailment '%s'.", ModelNameToFind, Ailment))
-                            break
+                local NewItemModel = FurnitureFolder:FindFirstChild(ModelNameToFind)
+                if NewItemModel then
+                    local UniqueName = NewItemModel:GetAttribute("furniture_unique")
+                    if UniqueName and type(UniqueName) == "string" then
+                        local VacantSeatInstance = nil
+                        if NewItemModel.UseBlocks then
+                            local Seats = NewItemModel.UseBlocks:GetChildren()
+                            if #Seats > 0 then
+                                VacantSeatInstance = Seats[1]
+                            end
                         end
+                        
+                        local FurnitureObject = {
+                            name = UniqueName,
+                            model = NewItemModel,
+                            vacant_seat = VacantSeatInstance
+                        }
+
+                        for Ailment, FurnitureDataInner in pairs(AILMENT_TO_FURNITURE_MODEL_MAP) do
+                            local CurrentModelName = FurnitureDataInner[1]
+                            if CurrentModelName == ModelNameToFind and not CurrentSmartFurnitureItems[Ailment] then
+                                CurrentSmartFurnitureItems[Ailment] = FurnitureObject -- Store the FurnitureObject
+                                warn(string.format("InitializeSmartFurniture: Successfully processed purchased item '%s' (Model: %s) for ailment '%s'.", UniqueName, ModelNameToFind, Ailment))
+                                break
+                            end
+                        end
+                    else
+                        warn(string.format("InitializeSmartFurniture: Found purchased item model '%s' (kind: %s), but it is missing a valid 'furniture_unique' string attribute. Cannot add to smart furniture map.", ModelNameToFind, BoughtItemInfo.kind))
                     end
                 else
-                    warn(string.format("InitializeSmartFurniture: Failed to find purchased item '%s' (kind: %s) in workspace after buying.", ModelNameToFind, BoughtItemInfo.kind))
+                    warn(string.format("InitializeSmartFurniture: Failed to find purchased item model '%s' (kind: %s) in workspace after buying.", ModelNameToFind, BoughtItemInfo.kind))
                 end
             end
         end
@@ -324,24 +426,35 @@ function TeleportToAilmentLocation(Location)
   end
 end
 
-function PlaceAndUseSitableAtCFrame(Sitable, TargetCFrame, PetModel)
-  if not Sitable or not TargetCFrame then warn("Attempting to place and use a sitable with no sitable or target cframe") return end
+function PlaceAndUseSitableAtCFrame(SitableFurnitureObject, TargetCFrame, PetModel)
+  if not SitableFurnitureObject or not SitableFurnitureObject.name or not SitableFurnitureObject.model or not TargetCFrame then 
+    warn(string.format("PlaceAndUseSitableAtCFrame: Invalid arguments. SitableFurnitureObject: %s, TargetCFrame: %s", tostring(SitableFurnitureObject), tostring(TargetCFrame)))
+    return 
+  end
 
   API["HousingAPI/PushFurnitureChanges"]:FireServer({
     [1] = {
-      ["unique"] = Sitable.name,
+      ["unique"] = SitableFurnitureObject.name, -- Use name from FurnitureObject (furniture_unique attribute)
       ["cframe"] = TargetCFrame
     }
   })
 
-  task.wait()
+  task.wait() -- Consider if this wait is always optimal or if it can be context-dependent
+
+  local SeatToUse = "UseBlock" -- Default seat name
+  if SitableFurnitureObject.vacant_seat and SitableFurnitureObject.vacant_seat.Name then -- Assuming the seat instance itself has a .Name property
+    SeatToUse = SitableFurnitureObject.vacant_seat.Name
+    -- print(string.format("PlaceAndUseSitableAtCFrame: Using specific vacant seat '%s' for furniture '%s'", SeatToUse, SitableFurnitureObject.name))
+  else
+    -- print(string.format("PlaceAndUseSitableAtCFrame: Using default seat 'UseBlock' for furniture '%s' as no specific VacantSeat was identified in FurnitureObject.", SitableFurnitureObject.name))
+  end
 
   API["HousingAPI/ActivateFurniture"]:InvokeServer(
     LocalPlayer,
-    Sitable.name,
-    Sitable.vacant_seat or "UseBlock", -- Added fallback for vacant_seat
+    SitableFurnitureObject.name,    -- Use name from FurnitureObject
+    SeatToUse,                      -- Use identified or default seat name
     {["cframe"] = TargetCFrame},
-    PetModel
+    PetModel                        -- Pass the PetModel as the target for activation
   )
 end
 
