@@ -1,5 +1,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local API = ReplicatedStorage:WaitForChild("API")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = game:GetService("Players").LocalPlayer
 
@@ -593,29 +594,30 @@ local function GetCurrentAilments()
 end
 
 -- Main loop to monitor _G.PetFarm
+local currentInstanceLoopId = HttpService:GenerateGUID(false)
+_G.PetFarmLoopInstanceId = currentInstanceLoopId
+print("PetFarmOfficial.luau loop started with ID: " .. currentInstanceLoopId .. ". To stop this specific loop instance if script is re-run, simply re-run the script. To pause operations, set _G.PetFarm = false.")
+
 local LoopCounter = 0
-while task.wait(1) do
+while _G.PetFarmLoopInstanceId == currentInstanceLoopId and task.wait(1) do
     LoopCounter = LoopCounter + 1
     if _G.PetFarm == true then
         if LoopCounter % 5 == 0 then 
-            print("PetFarm is ACTIVE (checked at " .. os.date("%X") .. ")")
+            print("PetFarm is ACTIVE (loop ID: " .. currentInstanceLoopId .. ", checked at " .. os.date("%X") .. ")")
         end
         
-        local AllPetsAilmentsData = GetCurrentAilments() -- This returns [{unique="id", ailments={"kind1", "kind2"}}]
+        local AllPetsAilmentsData = GetCurrentAilments()
         
         if #AllPetsAilmentsData > 0 then
-            -- Print raw detected ailments first
-            print(os.date("%X") .. " - Raw Detected Pet Ailments Report:")
+            print(os.date("%X") .. " - Raw Detected Pet Ailments Report (Loop ID: " .. currentInstanceLoopId .. "):")
             for _, PetRawData in ipairs(AllPetsAilmentsData) do
                 print(string.format("  Pet Unique ID: %s, Ailments: [%s]", PetRawData.unique, table.concat(PetRawData.ailments, ", ")))
             end
-            print("---") -- Separator
+            print("---") 
 
-            -- Now, process and print plans for each pet
-            local PlannerAilmentCategories = TaskPlanner:GetAilmentCategories() -- Get categories once
+            local PlannerAilmentCategories = TaskPlanner:GetAilmentCategories()
 
             for _, PetRawData in ipairs(AllPetsAilmentsData) do
-                -- Prepare PetData for TaskPlanner input
                 local PetDataForPlanner = {
                     unique = PetRawData.unique,
                     ailments = {
@@ -643,24 +645,32 @@ while task.wait(1) do
                     end
                 end
                 
-                -- Generate and Print Plan
                 if TaskPlanner and PlanFormatter then
-                    print(string.format("Generating plan for Pet: %s", PetDataForPlanner.unique))
+                    print(string.format("Generating plan for Pet: %s (Loop ID: %s)", PetDataForPlanner.unique, currentInstanceLoopId))
                     local GeneratedPlan = TaskPlanner:GenerateTaskPlan(PetDataForPlanner, true)
                     PlanFormatter.Print(GeneratedPlan, PetDataForPlanner.unique, PlannerAilmentCategories)
                 else
-                    warn("TaskPlanner or PlanFormatter not loaded correctly. Cannot generate or print plan.")
+                    warn("TaskPlanner or PlanFormatter not loaded correctly. Cannot generate or print plan. (Loop ID: " .. currentInstanceLoopId .. ")")
                 end
             end
 
         else
             if LoopCounter % 10 == 0 then 
-                 print(os.date("%X") .. " - No current pet ailments detected for any pet.")
+                 print(os.date("%X") .. " - No current pet ailments detected for any pet. (Loop ID: " .. currentInstanceLoopId .. ")")
             end
         end
     else
         if LoopCounter % 30 == 0 then 
-            print("PetFarm is INACTIVE (checked at " .. os.date("%X") .. ")")
+            print("PetFarm is INACTIVE (loop ID: " .. currentInstanceLoopId .. ", checked at " .. os.date("%X") .. ")")
         end
     end
 end
+
+-- Check if the loop exited due to ID mismatch or other reasons
+if _G.PetFarmLoopInstanceId ~= currentInstanceLoopId then
+    print("PetFarmOfficial.luau loop with ID: " .. currentInstanceLoopId .. " stopping as a new instance has started (new active ID: " .. tostring(_G.PetFarmLoopInstanceId) .. ").")
+else
+    print("PetFarmOfficial.luau loop with ID: " .. currentInstanceLoopId .. " stopping. If _G.PetFarmLoopInstanceId was manually cleared or script execution ended, this is expected.")
+end
+
+
