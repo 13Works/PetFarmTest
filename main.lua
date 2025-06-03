@@ -112,6 +112,49 @@ local AILMENT_KEYWORDS_MAP = {
   ["toilet"] = {"toilet", "litter box", "potty"}; -- Using "litter box" to match common pet item phrasing
 }
 
+local function GetFurnitureUniqueIdFromModel(ActualFurnitureModel, FunctionContextName, ParentContainerForContext) -- Added FunctionContextName
+  if not ActualFurnitureModel then
+    warn(string.format("%s: Called GetFurnitureUniqueIdFromModel with a nil ActualFurnitureModel.", FunctionContextName))
+    return nil, nil
+  end
+
+  local FurnitureUniqueId = nil
+  local IdSource = nil
+  local ContainerNameForWarning = (ParentContainerForContext and ParentContainerForContext["Name"]) or "UnknownContainer"
+
+  FurnitureUniqueId = ActualFurnitureModel:GetAttribute("furniture_unique")
+  if (FurnitureUniqueId and typeof(FurnitureUniqueId) == "string") then
+    IdSource = "attribute (furniture_unique on model)"
+  else
+    warn(string.format("%s: Model '%s' in container '%s' is missing 'furniture_unique' string attribute. Falling back to model name.", FunctionContextName, ActualFurnitureModel["Name"] or "UnnamedModel", ContainerNameForWarning))
+    FurnitureUniqueId = ActualFurnitureModel["Name"]
+    if (typeof(FurnitureUniqueId) == "string") then
+      IdSource = "model_name (fallback)"
+    else
+      warn(string.format("%s: Model '%s' in container '%s' also has an invalid non-string model name. Cannot derive ID.", FunctionContextName, ActualFurnitureModel["Name"] or "UnnamedModel", ContainerNameForWarning))
+      FurnitureUniqueId = nil
+      IdSource = nil
+    end
+  end
+  return FurnitureUniqueId, IdSource
+end
+
+local function GetVacantSeatFromModel(FurnitureModel)
+  if not FurnitureModel then
+    -- This warning might be too noisy if called speculatively. Consider if needed.
+    -- warn("GetVacantSeatFromModel: Called with a nil FurnitureModel.") 
+    return nil
+  end
+  local UseBlocks = FurnitureModel:FindFirstChild("UseBlocks")
+  if UseBlocks then
+    local Seats = UseBlocks:GetChildren()
+    if #Seats > 0 then
+      return Seats[1] -- Return the first seat found
+    end
+  end
+  return nil -- No UseBlocks or no seats in UseBlocks
+end
+
 local function FindFirstAilmentFurniture(AilmentName)
   local Keywords = AILMENT_KEYWORDS_MAP[AilmentName]
   if not Keywords then
@@ -125,59 +168,35 @@ local function FindFirstAilmentFurniture(AilmentName)
     return nil
   end
 
-  for _, ContainerFolderInstance in FurnitureFolder:GetChildren() do -- STYLE_GUIDE.md > Performance Guidelines > Loop Optimization
-    if ContainerFolderInstance:IsA("Folder") or ContainerFolderInstance:IsA("Model") then 
-      local UniqueNameFromContainer = nil
-      local NameSource = ""
+  for _, ContainerFolderInstance in FurnitureFolder:GetChildren() do
+    if ContainerFolderInstance:IsA("Folder") or ContainerFolderInstance:IsA("Model") then
+      for _, ActualFurnitureModel in ContainerFolderInstance:GetChildren() do
+        if ActualFurnitureModel:IsA("Model") or ActualFurnitureModel:IsA("BasePart") then
+          local FurnitureUniqueId, IdSource = GetFurnitureUniqueIdFromModel(ActualFurnitureModel, "FindFirstAilmentFurniture", ContainerFolderInstance)
 
-      UniqueNameFromContainer = ContainerFolderInstance:GetAttribute("furniture_unique")
-      if UniqueNameFromContainer and type(UniqueNameFromContainer) == "string" then
-        NameSource = "attribute (furniture_unique)"
-      else
-        warn(string.format("FindFirstAilmentFurniture: Container '%s' is missing 'furniture_unique' string attribute. Falling back to container name.", ContainerFolderInstance["Name"]))
-        UniqueNameFromContainer = ContainerFolderInstance["Name"] 
-        if type(UniqueNameFromContainer) == "string" then
-          NameSource = "container_name (fallback)"
-        else
-          warn(string.format("FindFirstAilmentFurniture: Container '%s' also has an invalid non-string container name. Skipping its contents.", ContainerFolderInstance["Name"]))
-          UniqueNameFromContainer = nil 
-        end
-      end
-
-      if UniqueNameFromContainer then 
-        for _, ActualFurnitureModel in ContainerFolderInstance:GetChildren() do -- STYLE_GUIDE.md > Performance Guidelines > Loop Optimization
-          if ActualFurnitureModel:IsA("Model") or ActualFurnitureModel:IsA("BasePart") then
+          if FurnitureUniqueId then
             local LowercaseActualModelName = string.lower(ActualFurnitureModel["Name"])
-            for _, Keyword in Keywords do -- STYLE_GUIDE.md > Performance Guidelines > Loop Optimization
+            for _, Keyword in Keywords do
               if string.find(LowercaseActualModelName, string.lower(Keyword)) then
-                local VacantSeatInstance = nil
-                local UseBlocks = ActualFurnitureModel:FindFirstChild("UseBlocks")
-                if UseBlocks then
-                  local Seats = UseBlocks:GetChildren()
-                  if #Seats > 0 then
-                    VacantSeatInstance = Seats[1]
-                  end
-                end
+                local VacantSeatInstance = GetVacantSeatFromModel(ActualFurnitureModel)
 
-                warn(string.format("FindFirstAilmentFurniture: Found generic furniture. UniqueID: '%s' (source: %s), ModelName (actual): '%s', For Ailment: '%s', Keyword: '%s', VacantSeat: %s",
-                  UniqueNameFromContainer, NameSource, ActualFurnitureModel["Name"], AilmentName, Keyword, VacantSeatInstance and VacantSeatInstance["Name"] or "nil"))
+                warn(string.format("FindFirstAilmentFurniture: Found generic furniture. UniqueID: '%s' (source: %s), ModelName (actual): '%s', Container: '%s', For Ailment: '%s', Keyword: '%s', VacantSeat: %s",
+                  FurnitureUniqueId, IdSource, ActualFurnitureModel["Name"], ContainerFolderInstance["Name"], AilmentName, Keyword, VacantSeatInstance and VacantSeatInstance["Name"] or "nil"))
 
                 return {
-                  ["name"] = UniqueNameFromContainer; 
-                  ["model"] = ActualFurnitureModel; 
+                  ["name"] = FurnitureUniqueId;
+                  ["model"] = ActualFurnitureModel;
                   ["vacant_seat"] = VacantSeatInstance;
                 }
               end
             end
           end
         end
-      else
-        -- Warning for invalid/missing UniqueNameFromContainer already issued above
       end
     end
   end
 
-  warn("FindFirstAilmentFurniture: No suitable owned furniture found for ailment: " .. AilmentName .. " (matching keywords, with a valid unique ID from attribute or name, and correct model structure).")
+  warn("FindFirstAilmentFurniture: No suitable owned furniture found for ailment: " .. AilmentName .. " (matching keywords, with a valid unique ID from model attribute or model name, and correct model structure).")
   return nil
 end
 
@@ -234,45 +253,32 @@ local function GetSmartFurniture()
     return FoundItems
   end
 
-  for Ailment, FurnitureData in AILMENT_TO_FURNITURE_MODEL_MAP do -- STYLE_GUIDE.md > Performance Guidelines > Loop Optimization
+  for Ailment, FurnitureData in AILMENT_TO_FURNITURE_MODEL_MAP do
     local ModelNameKey = FurnitureData[1]
-    local ItemModel = FurnitureFolder:FindFirstChild(ModelNameKey, true)
-    if (ItemModel) then
-      local ItemContainerFolder = ItemModel["Parent"]
-      local UniqueName = nil
-      local NameSource = ""
-      if (ItemContainerFolder and ItemContainerFolder["Parent"] == FurnitureFolder) then
-        UniqueName = ItemContainerFolder:GetAttribute("furniture_unique")
-        if (UniqueName and typeof(UniqueName) == "string") then
-          NameSource = "attribute (furniture_unique)"
-        else
-          warn(string.format("GetSmartFurniture: Smart furniture model '%s' (container: '%s') is missing 'furniture_unique' string attribute. Falling back to container name for now.", ItemModel["Name"], ItemContainerFolder["Name"]))
-          UniqueName = ItemContainerFolder["Name"]
-          if (typeof(UniqueName) == "string") then
-            NameSource = "container_name (fallback)"
-          else
-            warn(string.format("GetSmartFurniture: Smart furniture model '%s' (container: '%s') also has an invalid non-string container name. Cannot register for ailment '%s'.", ItemModel["Name"], ItemContainerFolder["Name"], Ailment))
-            UniqueName = nil
-          end
-        end
+    local ActualFurnitureModel = FurnitureFolder:FindFirstChild(ModelNameKey, true)
+
+    if (ActualFurnitureModel) then
+      local ParentContainer = ActualFurnitureModel["Parent"]
+      
+      if not (ParentContainer and ParentContainer["Parent"] == FurnitureFolder) then
+        local ContainerNameForContext = ParentContainer and ParentContainer["Name"] or "N/A (Parent not found or no name)"
+        warn(string.format("GetSmartFurniture: Smart furniture model '%s' (searched as '%s') found, but its parent ('%s') is not a direct container in FurnitureFolder. Skipping for ailment '%s'.", ActualFurnitureModel["Name"], ModelNameKey, ContainerNameForContext, Ailment))
       else
-        warn(string.format("GetSmartFurniture: Smart furniture model '%s' (searched as '%s') found, but its parent ('%s') is not a direct container in FurnitureFolder. Skipping for ailment '%s'.", ItemModel["Name"], ModelNameKey, ItemContainerFolder and ItemContainerFolder["Name"] or "N/A", Ailment))
-      end
-      if (UniqueName) then
-        local VacantSeatInstance = nil
-        local UseBlocks = ItemModel:FindFirstChild("UseBlocks")
-        if (UseBlocks) then
-          local Seats = UseBlocks:GetChildren()
-          if (#Seats > 0) then
-            VacantSeatInstance = Seats[1]
-          end
+        local FurnitureUniqueId, IdSource = GetFurnitureUniqueIdFromModel(ActualFurnitureModel, "GetSmartFurniture", ParentContainer)
+
+        if (FurnitureUniqueId) then
+          local VacantSeatInstance = GetVacantSeatFromModel(ActualFurnitureModel)
+          
+          FoundItems[Ailment] = {
+            ["name"] = FurnitureUniqueId;
+            ["model"] = ActualFurnitureModel;
+            ["vacant_seat"] = VacantSeatInstance;
+          }
+          print(string.format("GetSmartFurniture: Found/processed smart furniture. UniqueID: '%s' (source: %s), Model: '%s'. For ailment '%s'. Searched for: %s", FurnitureUniqueId, IdSource, ActualFurnitureModel["Name"], Ailment, ModelNameKey))
+        else
+          local ContainerNameForWarn = ParentContainer and ParentContainer["Name"] or "UnknownContainer"
+          warn(string.format("GetSmartFurniture: Could not derive Unique ID for smart model '%s' (container: '%s') for ailment '%s'. It will not be registered as smart furniture.", ActualFurnitureModel["Name"] or "UnnamedModel", ContainerNameForWarn, Ailment))
         end
-        FoundItems[Ailment] = {
-          ["name"] = UniqueName;
-          ["model"] = ItemModel;
-          ["vacant_seat"] = VacantSeatInstance;
-        }
-        print(string.format("GetSmartFurniture: Found/processed smart furniture. UniqueID: '%s' (source: %s), Model: '%s'. For ailment '%s'. Searched for: %s", UniqueName, NameSource, ItemModel["Name"], Ailment, ModelNameKey))
       end
     end
   end
@@ -343,41 +349,38 @@ local function InitializeSmartFurniture()
     for _, BoughtItemInfo in ItemsToBuy do -- This is an array, so generic loop is fine STYLE_GUIDE.md > Performance Guidelines > Loop Optimization
       local ModelNameToFind = ItemKindsToModelNames[BoughtItemInfo["kind"]]
       if (ModelNameToFind) then
-        local NewItemModel = FurnitureFolder:FindFirstChild(ModelNameToFind, true)
-        if (NewItemModel) then
-          local ItemContainerFolder = NewItemModel["Parent"]
-          if (ItemContainerFolder and ItemContainerFolder["Parent"] == FurnitureFolder) then
-            local UniqueName = ItemContainerFolder:GetAttribute("furniture_unique")
-            if (UniqueName and typeof(UniqueName) == "string") then
-              local VacantSeatInstance = nil
-              local UseBlocks = NewItemModel:FindFirstChild("UseBlocks")
-              if (UseBlocks) then
-                local Seats = UseBlocks:GetChildren()
-                if (#Seats > 0) then
-                  VacantSeatInstance = Seats[1]
-                end
-              end
+        local ActualNewFurnitureModel = FurnitureFolder:FindFirstChild(ModelNameToFind, true)
+        if (ActualNewFurnitureModel) then
+          local ParentContainer = ActualNewFurnitureModel["Parent"]
+          
+          if not (ParentContainer and ParentContainer["Parent"] == FurnitureFolder) then
+            local ContainerNameForContext = ParentContainer and ParentContainer["Name"] or "N/A (Parent not found or no name)"
+            warn(string.format("InitializeSmartFurniture: Found purchased model '%s' (Kind: %s), but its parent structure is unexpected ('%s' is not in FurnitureFolder). Cannot add to smart map.", ActualNewFurnitureModel["Name"] or "UnnamedModel", BoughtItemInfo["kind"], ContainerNameForContext))
+          else
+            local FurnitureUniqueId, IdSource = GetFurnitureUniqueIdFromModel(ActualNewFurnitureModel, "InitializeSmartFurniture", ParentContainer)
+
+            if (FurnitureUniqueId) then
+              local VacantSeatInstance = GetVacantSeatFromModel(ActualNewFurnitureModel)
 
               local FurnitureObject = {
-                ["name"] = UniqueName;        -- Unique ID from container folder's attribute
-                ["model"] = NewItemModel;      -- The actual furniture model instance
+                ["name"] = FurnitureUniqueId;
+                ["model"] = ActualNewFurnitureModel;
                 ["vacant_seat"] = VacantSeatInstance;
               }
 
-              for AilmentInner, FurnitureDataInner in AILMENT_TO_FURNITURE_MODEL_MAP do -- STYLE_GUIDE.md > Performance Guidelines > Loop Optimization (replacing pairs)
+              for AilmentInner, FurnitureDataInner in AILMENT_TO_FURNITURE_MODEL_MAP do
                 local CurrentModelNameFromMap = FurnitureDataInner[1]
-                -- Check if the ModelName of the found item matches the ModelName for the Ailment in the map
-                if NewItemModel["Name"] == CurrentModelNameFromMap and not CurrentSmartFurnitureItems[AilmentInner] then -- Used AilmentInner here
-                  CurrentSmartFurnitureItems[AilmentInner] = FurnitureObject -- Store the FurnitureObject
-                  warn(string.format("InitializeSmartFurniture: Successfully processed purchased item '%s' (Model: %s, Container: %s) for ailment '%s'.", UniqueName, NewItemModel["Name"], ItemContainerFolder["Name"], AilmentInner)) -- Used AilmentInner
+                if ActualNewFurnitureModel["Name"] == CurrentModelNameFromMap and not CurrentSmartFurnitureItems[AilmentInner] then
+                  CurrentSmartFurnitureItems[AilmentInner] = FurnitureObject
+                  local ContainerNameForLog = ParentContainer and ParentContainer["Name"] or "UnknownContainer"
+                  warn(string.format("InitializeSmartFurniture: Successfully processed purchased item '%s' (UniqueID from %s: '%s', Container: '%s') for ailment '%s'.", ActualNewFurnitureModel["Name"] or "UnnamedModel", IdSource or "N/A", FurnitureUniqueId, ContainerNameForLog, AilmentInner))
                   break
                 end
               end
             else
-              warn(string.format("InitializeSmartFurniture: Found purchased model '%s' (Kind: %s), but its container '%s' is missing 'furniture_unique' string attribute. Cannot add to smart map.", NewItemModel["Name"], BoughtItemInfo["kind"], ItemContainerFolder["Name"]))
+              local ContainerNameForWarn = ParentContainer and ParentContainer["Name"] or "UnknownContainer"
+              warn(string.format("InitializeSmartFurniture: Could not derive a Unique ID for purchased model '%s' (Kind: %s, Container: '%s') after attribute/name check. Cannot add to smart map.", ActualNewFurnitureModel["Name"] or "UnnamedModel", BoughtItemInfo["kind"], ContainerNameForWarn))
             end
-          else
-            warn(string.format("InitializeSmartFurniture: Found purchased model '%s' (Kind: %s), but its parent structure is unexpected. Parent: %s. Cannot add to smart map.", NewItemModel["Name"], BoughtItemInfo["kind"], NewItemModel["Parent"] and NewItemModel["Parent"]["Name"] or "nil"))
           end
         else
           warn(string.format("InitializeSmartFurniture: Failed to find purchased item model '%s' (kind: %s) recursively in workspace after buying.", ModelNameToFind, BoughtItemInfo["kind"]))
