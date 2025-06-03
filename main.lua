@@ -33,6 +33,7 @@ end
 -- Load external modules using HttpGet and loadstring
 local TaskPlanner = loadstring(game:HttpGet(('https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/TaskPlanner.lua'), true))()
 local PlanFormatter = loadstring(game:HttpGet(('https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/PlanFormatter.lua'), true))()
+local SharedConstants = require(ReplicatedStorage.ClientDB.SharedConstants)
 
 local SmartFurnitureMap = {}
 
@@ -491,6 +492,35 @@ function PlaceAndUseSitableAtCFrame(SitableFurnitureObject, TargetCFrame, PetMod
   )
 end
 
+-- Helper function to use a sitable furniture item at the player character's current CFrame
+function UseSitableAtCharacterCFrame(SitableFurnitureObject, PetModel)
+  if not SitableFurnitureObject or not SitableFurnitureObject.name or not SitableFurnitureObject.model or not PetModel then 
+    warn(string.format("UseSitableAtCharacterCFrame: Invalid arguments. SitableFurnitureObject: %s, PetModel: %s", tostring(SitableFurnitureObject), tostring(PetModel)))
+    return 
+  end
+
+  if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+    warn("UseSitableAtCharacterCFrame: LocalPlayer.Character.HumanoidRootPart not found. Cannot determine target CFrame.")
+    return
+  end
+  local TargetCFrame = LocalPlayer.Character.HumanoidRootPart.CFrame
+
+  local SeatToUse = "UseBlock" -- Default seat name
+  if SitableFurnitureObject.vacant_seat and SitableFurnitureObject.vacant_seat.Name then
+    SeatToUse = SitableFurnitureObject.vacant_seat.Name
+  end
+
+  warn(string.format("UseSitableAtCharacterCFrame: Activating furniture '%s' (Seat: '%s') at player CFrame for Pet: '%s'", SitableFurnitureObject.name, SeatToUse, PetModel.Name))
+
+  API["HousingAPI/ActivateFurniture"]:InvokeServer(
+    LocalPlayer,
+    SitableFurnitureObject.name,    -- Use name from FurnitureObject
+    SeatToUse,                      -- Use identified or default seat name
+    { ["cframe"] = TargetCFrame },  -- CFrame is player's current CFrame
+    PetModel                        -- Pass the PetModel as the target for activation
+  )
+end
+
 local function HandleSmartOrTeleportAilment(AilmentTargetCFrame, LocationName, PetModel, AilmentName)
   local FurnitureToUse = nil
   if next(SmartFurnitureMap) == nil then 
@@ -526,7 +556,10 @@ local AilmentActions = {
       task.spawn(HandleSmartOrTeleportAilment, AilmentTargetCFrame, "park", PetModel, "bored")
 
       if WaitForCompletion then
-        repeat task.wait(1) until not VerifyAilmentExists(PetModel, "bored")
+        local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "bored", 30) -- 30s timeout
+        if not Cleared then
+          warn(string.format("PetFarmOfficial.AilmentActions.bored: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "bored", GetPetUniqueIdString(PetModel)))
+        end
       end
     end)
 
@@ -536,12 +569,15 @@ local AilmentActions = {
   end;
   ["beach"] = function(PetModel, WaitForCompletion)
     local Success, Error = pcall(function()
-      if not VerifyAilmentExists(PetModel, "beach_party") then return end -- Assuming beach_party is the ailment name to check
+      if not VerifyAilmentExists(PetModel, "beach_party") then return end 
       local AilmentTargetCFrame = workspace.StaticMap.Beach.BeachPartyAilmentTarget.CFrame
       task.spawn(HandleSmartOrTeleportAilment, AilmentTargetCFrame, "beach", PetModel, "beach_party") 
 
       if WaitForCompletion then
-        repeat task.wait(1) until not VerifyAilmentExists(PetModel, "beach_party")
+        local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "beach_party", 30) -- 30s timeout
+        if not Cleared then
+          warn(string.format("PetFarmOfficial.AilmentActions.beach: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "beach_party", GetPetUniqueIdString(PetModel)))
+        end
       end
     end)
 
@@ -556,7 +592,10 @@ local AilmentActions = {
       task.spawn(HandleSmartOrTeleportAilment, AilmentTargetCFrame, "campsite", PetModel, "camping")
 
       if WaitForCompletion then
-        repeat task.wait(1) until not VerifyAilmentExists(PetModel, "camping")
+        local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "camping", 30) -- 30s timeout
+        if not Cleared then
+          warn(string.format("PetFarmOfficial.AilmentActions.camping: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "camping", GetPetUniqueIdString(PetModel)))
+        end
       end
     end)
 
@@ -572,7 +611,10 @@ local AilmentActions = {
         warn(string.format("PetFarmOfficial.AilmentActions.hungry.Standard: Simulating purchase of Apple and feeding to %s. Implement actual item purchase and use API.", PetModel.Name))
         -- Add actual API calls here when available
         if WaitForCompletion then
-          repeat task.wait(1) until not VerifyAilmentExists(PetModel, "hungry")
+          local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "hungry", 25) -- 25s timeout (SharedConstants.full_food_bowl_drink_duration is ~16s)
+          if not Cleared then
+            warn(string.format("PetFarmOfficial.AilmentActions.hungry.Standard: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "hungry", GetPetUniqueIdString(PetModel)))
+          end
         end
       end)
       if not Success then
@@ -592,7 +634,10 @@ local AilmentActions = {
           warn("PetFarmOfficial.AilmentActions.hungry.Smart: Smart food bowl not available. Consider falling back to Standard or checking configuration.")
         end
         if WaitForCompletion then
-          repeat task.wait(1) until not VerifyAilmentExists(PetModel, "hungry")
+          local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "hungry", 25) -- 25s timeout
+          if not Cleared then
+            warn(string.format("PetFarmOfficial.AilmentActions.hungry.Smart: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "hungry", GetPetUniqueIdString(PetModel)))
+          end
         end
       end)
       if not Success then
@@ -608,7 +653,10 @@ local AilmentActions = {
         warn(string.format("PetFarmOfficial.AilmentActions.thirsty.Standard: Simulating purchase of CupOfTea and feeding to %s. Implement actual item purchase and use API.", PetModel.Name))
         -- Add actual API calls here when available
         if WaitForCompletion then
-          repeat task.wait(1) until not VerifyAilmentExists(PetModel, "thirsty")
+          local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "thirsty", 25) -- 25s timeout (SharedConstants.full_water_bowl_drink_duration is ~16s)
+          if not Cleared then
+            warn(string.format("PetFarmOfficial.AilmentActions.thirsty.Standard: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "thirsty", GetPetUniqueIdString(PetModel)))
+          end
         end
       end)
       if not Success then
@@ -628,7 +676,10 @@ local AilmentActions = {
           warn("PetFarmOfficial.AilmentActions.thirsty.Smart: Smart water bowl not available. Consider falling back to Standard or checking configuration.")
         end
         if WaitForCompletion then
-          repeat task.wait(1) until not VerifyAilmentExists(PetModel, "thirsty")
+          local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "thirsty", 25) -- 25s timeout
+          if not Cleared then
+            warn(string.format("PetFarmOfficial.AilmentActions.thirsty.Smart: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "thirsty", GetPetUniqueIdString(PetModel)))
+          end
         end
       end)
       if not Success then
@@ -673,7 +724,10 @@ local AilmentActions = {
       )
 
       if WaitForCompletion then
-        repeat task.wait(1) until not VerifyAilmentExists(PetModel, "sick")
+        local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "sick", 30) -- 30s timeout
+        if not Cleared then
+          warn(string.format("PetFarmOfficial.AilmentActions.sick: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "sick", GetPetUniqueIdString(PetModel)))
+        end
       end
     end)
 
@@ -687,7 +741,10 @@ local AilmentActions = {
       if not VerifyAilmentExists(PetModel, "salon") then return end
       TeleportToAilmentLocation("Salon")
       if WaitForCompletion then
-        repeat task.wait(1) until not VerifyAilmentExists(PetModel, "salon")
+        local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "salon", 30) -- 30s timeout
+        if not Cleared then
+          warn(string.format("PetFarmOfficial.AilmentActions.salon: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "salon", GetPetUniqueIdString(PetModel)))
+        end
       end
     end)
     if not Success then
@@ -700,7 +757,10 @@ local AilmentActions = {
       if not VerifyAilmentExists(PetModel, "school") then return end
       TeleportToAilmentLocation("School")
       if WaitForCompletion then
-        repeat task.wait(1) until not VerifyAilmentExists(PetModel, "school")
+        local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "school", 30) -- 30s timeout
+        if not Cleared then
+          warn(string.format("PetFarmOfficial.AilmentActions.school: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "school", GetPetUniqueIdString(PetModel)))
+        end
       end
     end)
     if not Success then
@@ -713,7 +773,10 @@ local AilmentActions = {
       if not VerifyAilmentExists(PetModel, "pizza_party") then return end
       TeleportToAilmentLocation("PizzaShop") 
       if WaitForCompletion then
-        repeat task.wait(1) until not VerifyAilmentExists(PetModel, "pizza_party")
+        local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "pizza_party", 30) -- 30s timeout
+        if not Cleared then
+          warn(string.format("PetFarmOfficial.AilmentActions.pizza_party: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "pizza_party", GetPetUniqueIdString(PetModel)))
+        end
       end
     end)
     if not Success then
@@ -721,57 +784,123 @@ local AilmentActions = {
     end
   end;
 
-  ["sleepy"] = function(PetModel, TargetCFrame, WaitForCompletion)
-    local Success, Error = pcall(function()
-      if not VerifyAilmentExists(PetModel, "sleepy") then return end
-      local FurnitureItem = SmartFurnitureMap["sleepy"] 
-      if not FurnitureItem then
-        warn("PetFarmOfficial.AilmentActions.sleepy: SmartFurnitureMap does NOT have 'sleepy' entry. Trying FindFirstAilmentFurniture as fallback.")
-        FurnitureItem = FindFirstAilmentFurniture("sleepy") 
-      end
+  ["sleepy"] = {
+    Standard = function(PetModel, WaitForCompletion)
+      local Success, Error = pcall(function()
+        if not VerifyAilmentExists(PetModel, "sleepy") then return end
 
-      if FurnitureItem then
-        warn(string.format("PetFarmOfficial.AilmentActions.sleepy: Attempting to use FurnitureItem. Name: %s, Model: %s", FurnitureItem.name, FurnitureItem.model and FurnitureItem.model.Name or "N/A"))
-        PlaceAndUseSitableAtCFrame(FurnitureItem, TargetCFrame, PetModel)
-      else
-        warn("PetFarmOfficial.AilmentActions.sleepy: No suitable smart or generic owned crib/bed found (after checking SmartFurnitureMap and FindFirstAilmentFurniture).")
-      end
+        local FurnitureItem = SmartFurnitureMap["sleepy"]
+        if not FurnitureItem then
+          warn("PetFarmOfficial.AilmentActions.sleepy.Standard: SmartFurnitureMap does NOT have 'sleepy' entry. Trying FindFirstAilmentFurniture.")
+          FurnitureItem = FindFirstAilmentFurniture("sleepy")
+        end
 
-      if WaitForCompletion then
-        repeat task.wait(1) until not VerifyAilmentExists(PetModel, "sleepy")
+        if FurnitureItem then
+          warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem.name, FurnitureItem.model and FurnitureItem.model.Name or "N/A"))
+          UseSitableAtCharacterCFrame(FurnitureItem, PetModel)
+        else
+          warn("PetFarmOfficial.AilmentActions.sleepy.Standard: No suitable smart or generic owned crib/bed found.")
+        end
+
+        if WaitForCompletion then
+          local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "sleepy", 30) -- 30s timeout
+          if not Cleared then
+            warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Standard: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "sleepy", GetPetUniqueIdString(PetModel)))
+          end
+        end
+      end)
+      if not Success then
+        warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Standard: Error: %s", Error or "Unknown error"))
       end
-    end)
-    if not Success then
-      warn(string.format("Error executing 'sleepy' ailment: %s", Error or "Unknown error"))
+    end,
+    Smart = function(PetModel, TargetCFrame, WaitForCompletion)
+      local Success, Error = pcall(function()
+        if not VerifyAilmentExists(PetModel, "sleepy") then return end
+
+        local FurnitureItem = SmartFurnitureMap["sleepy"]
+        if not FurnitureItem then
+          warn("PetFarmOfficial.AilmentActions.sleepy.Smart: SmartFurnitureMap does NOT have 'sleepy' entry. Trying FindFirstAilmentFurniture.")
+          FurnitureItem = FindFirstAilmentFurniture("sleepy")
+        end
+
+        if FurnitureItem then
+          warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem.name, FurnitureItem.model and FurnitureItem.model.Name or "N/A"))
+          PlaceAndUseSitableAtCFrame(FurnitureItem, TargetCFrame, PetModel)
+        else
+          warn("PetFarmOfficial.AilmentActions.sleepy.Smart: No suitable smart or generic owned crib/bed found.")
+        end
+
+        if WaitForCompletion then
+          local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "sleepy", 30) -- 30s timeout
+          if not Cleared then
+            warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "sleepy", GetPetUniqueIdString(PetModel)))
+          end
+        end
+      end)
+      if not Success then
+        warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: Error: %s", Error or "Unknown error"))
+      end
     end
-  end;
+  };
 
-  ["dirty"] = function(PetModel, TargetCFrame, WaitForCompletion)
-    local Success, Error = pcall(function()
-      if not VerifyAilmentExists(PetModel, "dirty") then return end
-      
-      local FurnitureItem = SmartFurnitureMap["dirty"] 
+  ["dirty"] = {
+    Standard = function(PetModel, WaitForCompletion)
+      local Success, Error = pcall(function()
+        if not VerifyAilmentExists(PetModel, "dirty") then return end
 
-      if not FurnitureItem then
-        warn("PetFarmOfficial.AilmentActions.dirty: SmartFurnitureMap does NOT have 'dirty' entry. Trying FindFirstAilmentFurniture as fallback.")
-        FurnitureItem = FindFirstAilmentFurniture("dirty") 
+        local FurnitureItem = SmartFurnitureMap["dirty"]
+        if not FurnitureItem then
+          warn("PetFarmOfficial.AilmentActions.dirty.Standard: SmartFurnitureMap does NOT have 'dirty' entry. Trying FindFirstAilmentFurniture.")
+          FurnitureItem = FindFirstAilmentFurniture("dirty")
+        end
+
+        if FurnitureItem then
+          warn(string.format("PetFarmOfficial.AilmentActions.dirty.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem.name, FurnitureItem.model and FurnitureItem.model.Name or "N/A"))
+          UseSitableAtCharacterCFrame(FurnitureItem, PetModel)
+        else
+          warn("PetFarmOfficial.AilmentActions.dirty.Standard: No suitable smart or generic owned shower/bath found.")
+        end
+
+        if WaitForCompletion then
+          local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "dirty", 30) -- 30s timeout
+          if not Cleared then
+            warn(string.format("PetFarmOfficial.AilmentActions.dirty.Standard: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "dirty", GetPetUniqueIdString(PetModel)))
+          end
+        end
+      end)
+      if not Success then
+        warn(string.format("PetFarmOfficial.AilmentActions.dirty.Standard: Error: %s", Error or "Unknown error"))
       end
+    end,
+    Smart = function(PetModel, TargetCFrame, WaitForCompletion)
+      local Success, Error = pcall(function()
+        if not VerifyAilmentExists(PetModel, "dirty") then return end
 
-      if FurnitureItem then
-        warn(string.format("PetFarmOfficial.AilmentActions.dirty: Attempting to use FurnitureItem. Name: %s, Model: %s", FurnitureItem.name, FurnitureItem.model and FurnitureItem.model.Name or "N/A"))
-        PlaceAndUseSitableAtCFrame(FurnitureItem, TargetCFrame, PetModel)
-      else
-        warn("PetFarmOfficial.AilmentActions.dirty: No suitable smart or generic owned shower/bath found (after checking SmartFurnitureMap and FindFirstAilmentFurniture).")
-      end
+        local FurnitureItem = SmartFurnitureMap["dirty"]
+        if not FurnitureItem then
+          warn("PetFarmOfficial.AilmentActions.dirty.Smart: SmartFurnitureMap does NOT have 'dirty' entry. Trying FindFirstAilmentFurniture.")
+          FurnitureItem = FindFirstAilmentFurniture("dirty")
+        end
 
-      if WaitForCompletion then
-        repeat task.wait(1) until not VerifyAilmentExists(PetModel, "dirty")
+        if FurnitureItem then
+          warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem.name, FurnitureItem.model and FurnitureItem.model.Name or "N/A"))
+          PlaceAndUseSitableAtCFrame(FurnitureItem, TargetCFrame, PetModel)
+        else
+          warn("PetFarmOfficial.AilmentActions.dirty.Smart: No suitable smart or generic owned shower/bath found.")
+        end
+
+        if WaitForCompletion then
+          local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "dirty", 30) -- 30s timeout
+          if not Cleared then
+            warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "dirty", GetPetUniqueIdString(PetModel)))
+          end
+        end
+      end)
+      if not Success then
+        warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: Error: %s", Error or "Unknown error"))
       end
-    end)
-    if not Success then
-      warn(string.format("Error executing 'dirty' ailment: %s", Error or "Unknown error"))
     end
-  end;
+  };
 
   ["catch"] = function(PetModel, WaitForCompletion)
     local Success, Error = pcall(function()
@@ -800,10 +929,22 @@ local AilmentActions = {
       -- Assuming CreatePetObject initiates the throw and pet interaction.
 
       if WaitForCompletion then
-        warn("PetFarmOfficial.AilmentActions.catch: Waiting for 'catch' ailment to clear. For full completion, also ensure IsToyEquippedByPlayer("..ThrowableToy.Name..") is implemented and added to the wait condition.")
-        repeat
-          task.wait(1)
-        until not VerifyAilmentExists(PetModel, "catch") -- TODO: Extend condition with 'and IsToyEquippedByPlayer(ThrowableToy)' once IsToyEquippedByPlayer is fully implemented.
+        warn("PetFarmOfficial.AilmentActions.catch: Waiting for 'catch' ailment to clear. For full completion, also ensure IsToyEquippedByPlayer("..tostring(ThrowableToy and ThrowableToy.Name)..") is implemented and added to the wait condition.")
+        
+        local ExtraCondition = function()
+          -- If IsToyEquippedByPlayer is a stub always returning true, this doesn't add much yet.
+          -- Once implemented, it will correctly check if the toy is still (or back) in the player's equipped inventory.
+          -- For the purpose of the catch *ailment* clearing, we might primarly care about the ailment itself.
+          -- However, if the toy *not* being equipped anymore is part of a successful catch sequence (e.g., pet has it),
+          -- then the logic might need to be: `return not IsToyEquippedByPlayer(ThrowableToy)`
+          -- For now, assuming success = ailment clear AND toy is (somehow, eventually) re-quippable or considered available.
+          return IsToyEquippedByPlayer(ThrowableToy) 
+        end
+
+        local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "catch", 20, ExtraCondition) -- 20s timeout
+        if not Cleared then
+          warn(string.format("PetFarmOfficial.AilmentActions.catch: Ailment '%s' for pet '%s' (or extra condition) did NOT clear/meet within the timeout.", "catch", GetPetUniqueIdString(PetModel)))
+        end
       end
     end)
     if not Success then
@@ -811,30 +952,64 @@ local AilmentActions = {
     end
   end;
 
-  ["toilet"] = function(PetModel, TargetCFrame, WaitForCompletion)
-    local Success, Error = pcall(function()
-      if not VerifyAilmentExists(PetModel, "toilet") then return end
-      local FurnitureItem = SmartFurnitureMap["toilet"] 
-      if not FurnitureItem then
-        warn("PetFarmOfficial.AilmentActions.toilet: SmartFurnitureMap does NOT have 'toilet' entry. Trying FindFirstAilmentFurniture as fallback.")
-        FurnitureItem = FindFirstAilmentFurniture("toilet") 
-      end
+  ["toilet"] = {
+    Standard = function(PetModel, WaitForCompletion)
+      local Success, Error = pcall(function()
+        if not VerifyAilmentExists(PetModel, "toilet") then return end
 
-      if FurnitureItem then
-        warn(string.format("PetFarmOfficial.AilmentActions.toilet: Attempting to use FurnitureItem. Name: %s, Model: %s", FurnitureItem.name, FurnitureItem.model and FurnitureItem.model.Name or "N/A"))
-        PlaceAndUseSitableAtCFrame(FurnitureItem, TargetCFrame, PetModel)
-      else
-        warn("PetFarmOfficial.AilmentActions.toilet: No suitable smart or generic owned toilet/litter box found (after checking SmartFurnitureMap and FindFirstAilmentFurniture).")
-      end
+        local FurnitureItem = SmartFurnitureMap["toilet"]
+        if not FurnitureItem then
+          warn("PetFarmOfficial.AilmentActions.toilet.Standard: SmartFurnitureMap does NOT have 'toilet' entry. Trying FindFirstAilmentFurniture.")
+          FurnitureItem = FindFirstAilmentFurniture("toilet")
+        end
 
-      if WaitForCompletion then
-        repeat task.wait(1) until not VerifyAilmentExists(PetModel, "toilet")
+        if FurnitureItem then
+          warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem.name, FurnitureItem.model and FurnitureItem.model.Name or "N/A"))
+          UseSitableAtCharacterCFrame(FurnitureItem, PetModel)
+        else
+          warn("PetFarmOfficial.AilmentActions.toilet.Standard: No suitable smart or generic owned toilet/litter box found.")
+        end
+
+        if WaitForCompletion then
+          local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "toilet", 30) -- 30s timeout
+          if not Cleared then
+            warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "toilet", GetPetUniqueIdString(PetModel)))
+          end
+        end
+      end)
+      if not Success then
+        warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: Error: %s", Error or "Unknown error"))
       end
-    end)
-    if not Success then
-      warn(string.format("Error executing 'toilet' ailment: %s", Error or "Unknown error"))
+    end,
+    Smart = function(PetModel, TargetCFrame, WaitForCompletion)
+      local Success, Error = pcall(function()
+        if not VerifyAilmentExists(PetModel, "toilet") then return end
+
+        local FurnitureItem = SmartFurnitureMap["toilet"]
+        if not FurnitureItem then
+          warn("PetFarmOfficial.AilmentActions.toilet.Smart: SmartFurnitureMap does NOT have 'toilet' entry. Trying FindFirstAilmentFurniture.")
+          FurnitureItem = FindFirstAilmentFurniture("toilet")
+        end
+
+        if FurnitureItem then
+          warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem.name, FurnitureItem.model and FurnitureItem.model.Name or "N/A"))
+          PlaceAndUseSitableAtCFrame(FurnitureItem, TargetCFrame, PetModel)
+        else
+          warn("PetFarmOfficial.AilmentActions.toilet.Smart: No suitable smart or generic owned toilet/litter box found.")
+        end
+
+        if WaitForCompletion then
+          local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "toilet", 30) -- 30s timeout
+          if not Cleared then
+            warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: Ailment '%s' for pet '%s' did NOT clear within the timeout.", "toilet", GetPetUniqueIdString(PetModel)))
+          end
+        end
+      end)
+      if not Success then
+        warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: Error: %s", Error or "Unknown error"))
+      end
     end
-  end;
+  };
 }
 
 -- Updated GetCurrentAilments function
@@ -963,82 +1138,117 @@ local function GetMyEquippedPetUniques()
 end
 
 -- [[ FUNCTION TO PROCESS TASK PLAN - TO BE EXPANDED ]] --
-local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentActions)
+local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentActions, OriginalAilmentsFlatList)
     print(string.format("--- Starting Task Plan Execution for Pet: %s (%s) ---", PetModel.Name, PetUniqueId))
-    if not GeneratedPlan or #GeneratedPlan == 0 then
-        print("ProcessTaskPlan: No tasks in the generated plan for " .. PetUniqueId .. ".")
-        return
+    if GeneratedPlan and #GeneratedPlan > 0 then
+        print("  Initial ailments for this plan: [" .. table.concat(OriginalAilmentsFlatList or {}, ", ") .. "]")
+    else
+        print("ProcessTaskPlan: No tasks in the generated plan for " .. PetUniqueId .. ". Initial ailments: [" .. table.concat(OriginalAilmentsFlatList or {}, ", ") .. "]")
+        -- Even if no plan, run the check for originally detected ailments
     end
 
-    for TaskIndex, TaskData in ipairs(GeneratedPlan) do
-        print(string.format("  [%d/%d] Attempting Task: Type='%s', Ailment/Desc='%s', Time='%s'", 
-            TaskIndex, #GeneratedPlan, TaskData.type, TaskData.ailment or TaskData.description or "N/A", tostring(TaskData.time or TaskData.adjustedTime or 0)))
+    if GeneratedPlan and #GeneratedPlan > 0 then
+        for TaskIndex, TaskData in ipairs(GeneratedPlan) do
+            print(string.format("  [%d/%d] Attempting Task: Type='%s', Ailment/Desc='%s', Time='%s'", 
+                TaskIndex, #GeneratedPlan, TaskData.type, TaskData.ailment or TaskData.description or "N/A", tostring(TaskData.time or TaskData.adjustedTime or 0)))
 
-        local ActionToExecute = nil
-        local ActionRequiresTargetCFrame = false
-        local AilmentNameForAction = TaskData.ailment
+            local ActionToExecute = nil
+            local ActionRequiresTargetCFrame = false
+            local AilmentNameForAction = TaskData.ailment
 
-        if TaskData.type == "location" or TaskData.type == "instant" or TaskData.type == "remaining" then
-            -- These types often use TaskData.ailment as the direct key in AilmentActions
-            AilmentNameForAction = TaskData.ailment
-            if AllAilmentActions[AilmentNameForAction] then 
-                ActionToExecute = AllAilmentActions[AilmentNameForAction]
-                if AilmentNameForAction == "sleepy" or AilmentNameForAction == "dirty" or AilmentNameForAction == "toilet" then
-                    ActionRequiresTargetCFrame = true
+            if TaskData.type == "location" or TaskData.type == "instant" or TaskData.type == "remaining" then
+                AilmentNameForAction = TaskData.ailment
+                if AllAilmentActions[AilmentNameForAction] then 
+                    ActionToExecute = AllAilmentActions[AilmentNameForAction]
+                    if AilmentNameForAction == "sleepy" or AilmentNameForAction == "dirty" or AilmentNameForAction == "toilet" then
+                        ActionRequiresTargetCFrame = true -- This will now default to .Smart if CFrame is determined by ProcessTaskPlan
+                    end
                 end
+            elseif TaskData.type == "location_bonus" then 
+                AilmentNameForAction = TaskData.ailment 
+                if AllAilmentActions[AilmentNameForAction] and type(AllAilmentActions[AilmentNameForAction]) == "table" then 
+                    ActionToExecute = AllAilmentActions[AilmentNameForAction] -- Keep as table, dispatch to .Smart or .Standard later
+                    ActionRequiresTargetCFrame = true 
+                elseif AllAilmentActions[AilmentNameForAction] then 
+                    ActionToExecute = AllAilmentActions[AilmentNameForAction]
+                end
+            else
+               AilmentNameForAction = TaskData.ailment or TaskData.description 
+               if AllAilmentActions[AilmentNameForAction] then
+                    ActionToExecute = AllAilmentActions[AilmentNameForAction]
+               end
             end
-        elseif TaskData.type == "location_bonus" then 
-            AilmentNameForAction = TaskData.ailment 
-            -- For location bonus, decide if it's standard or smart (e.g. hungry)
-            if AllAilmentActions[AilmentNameForAction] and type(AllAilmentActions[AilmentNameForAction]) == "table" then -- e.g. hungry.Smart
-                ActionToExecute = AllAilmentActions[AilmentNameForAction].Smart -- Default to Smart for bonus items like bowls
-                ActionRequiresTargetCFrame = true -- Smart feeding/drinking needs a CFrame
-            elseif AllAilmentActions[AilmentNameForAction] then -- simple bonus like pet_me
-                ActionToExecute = AllAilmentActions[AilmentNameForAction]
-            end
-        else
-           AilmentNameForAction = TaskData.ailment or TaskData.description -- Fallback for other types if they use ailment name
-           if AllAilmentActions[AilmentNameForAction] then
-                ActionToExecute = AllAilmentActions[AilmentNameForAction]
-           end
-        end
-        
-        if ActionToExecute then
-            local TargetCFrame = nil
-            if ActionRequiresTargetCFrame then
-                if PetModel and PetModel.PrimaryPart then
-                    TargetCFrame = PetModel.PrimaryPart.CFrame * CFrame.new(0,0,-3) -- Placeholder CFrame
-                    print(string.format("    Using placeholder TargetCFrame for '%s' action near pet.", AilmentNameForAction))
+            
+            if ActionToExecute then
+                local TargetCFrame = nil
+                if ActionRequiresTargetCFrame then
+                    if PetModel and PetModel.PrimaryPart then
+                        TargetCFrame = PetModel.PrimaryPart.CFrame * CFrame.new(0,0,-3) 
+                        print(string.format("    Using placeholder TargetCFrame for '%s' action near pet.", AilmentNameForAction))
+                    else
+                        warn("    ProcessTaskPlan: Cannot determine TargetCFrame for action ", AilmentNameForAction, ": PetModel or PrimaryPart missing. Skipping this task.")
+                        ActionRequiresTargetCFrame = false -- Prevent trying to call .Smart without a CFrame
+                        -- No continue here, will attempt .Standard if possible or fail if ActionToExecute is only a function expecting CFrame
+                    end
+                end
+
+                print("    Executing action for: " .. (AilmentNameForAction or TaskData.type))
+                local Success, ErrorMsg
+                if ActionRequiresTargetCFrame and TargetCFrame then -- Ensure TargetCFrame is not nil if required
+                    if type(ActionToExecute) == "table" and ActionToExecute.Smart then
+                        warn("    ProcessTaskPlan: For ", AilmentNameForAction, ", Smart method selected with TargetCFrame.")
+                        Success, ErrorMsg = pcall(ActionToExecute.Smart, PetModel, TargetCFrame, true)
+                    elseif type(ActionToExecute) == "function" then 
+                        warn("    ProcessTaskPlan: WARNING - ActionRequiresTargetCFrame is true, but ActionToExecute for ", AilmentNameForAction, " is a direct function. Calling with TargetCFrame anyway.")
+                        Success, ErrorMsg = pcall(ActionToExecute, PetModel, TargetCFrame, true) 
+                    else
+                        warn("    ProcessTaskPlan: WARNING - ActionToExecute for ", AilmentNameForAction, " is not a table with .Smart or a direct function. Cannot execute with TargetCFrame.")
+                        Success = false
+                        ErrorMsg = "Action structure incompatible with TargetCFrame requirement."
+                    end
                 else
-                    warn("    Cannot determine TargetCFrame for action ", AilmentNameForAction, ": PetModel or PrimaryPart missing. Skipping this task.")
-                    continue -- Replaced goto next_task with continue
+                    if type(ActionToExecute) == "table" and ActionToExecute.Standard then 
+                         warn("    ProcessTaskPlan: For ", AilmentNameForAction, ", Standard method selected (or no TargetCFrame needed/available).")
+                         Success, ErrorMsg = pcall(ActionToExecute.Standard, PetModel, true)
+                    elseif type(ActionToExecute) == "function" then 
+                        warn("    ProcessTaskPlan: For ", AilmentNameForAction, ", direct function call (no TargetCFrame needed/available).")
+                        Success, ErrorMsg = pcall(ActionToExecute, PetModel, true) 
+                    else
+                        warn("    ProcessTaskPlan: WARNING - ActionToExecute for ", AilmentNameForAction, " is not a table with .Standard or a direct function. Cannot execute.")
+                        Success = false
+                        ErrorMsg = "Action structure incompatible for non-TargetCFrame execution."
+                    end
                 end
-            end
 
-            print("    Executing action for: " .. (AilmentNameForAction or TaskData.type))
-            local Success, ErrorMsg
-            if ActionRequiresTargetCFrame then
-                Success, ErrorMsg = pcall(ActionToExecute, PetModel, TargetCFrame, true) -- WaitForCompletion = true
-            else
-                 -- Handle actions like hungry/thirsty.Standard or location teleports
-                if type(ActionToExecute) == "table" and ActionToExecute.Standard then -- e.g. hungry, thirsty
-                     warn("    ProcessTaskPlan: For ", AilmentNameForAction, ", Standard method selected (or no CFrame method). Requires PetModel, WaitForCompletion.")
-                     Success, ErrorMsg = pcall(ActionToExecute.Standard, PetModel, true)
-                else -- Direct function call (e.g. sick, salon, bored, catch)
-                    Success, ErrorMsg = pcall(ActionToExecute, PetModel, true) -- WaitForCompletion = true
+                if not Success then
+                    warn(string.format("    Error executing action '%s': %s", AilmentNameForAction or TaskData.type, tostring(ErrorMsg)))
+                else
+                    print("    Action completed for: " .. (AilmentNameForAction or TaskData.type))
                 end
-            end
-
-            if not Success then
-                warn(string.format("    Error executing action '%s': %s", AilmentNameForAction or TaskData.type, tostring(ErrorMsg)))
+                task.wait(1) 
             else
-                print("    Action completed for: " .. (AilmentNameForAction or TaskData.type))
+                warn("    No specific action found in AilmentActions for task type: ", TaskData.type, " with ailment/desc: ", TaskData.ailment or TaskData.description or "N/A")
             end
-            task.wait(1) -- Small delay between tasks
-        else
-            warn("    No specific action found in AilmentActions for task type: ", TaskData.type, " with ailment/desc: ", TaskData.ailment or TaskData.description or "N/A")
         end
     end
+
+    -- Post-execution check for unresolved ailments
+    if OriginalAilmentsFlatList and #OriginalAilmentsFlatList > 0 then
+        print(string.format("--- Checking unresolved ailments for Pet: %s (%s) ---", PetModel.Name, PetUniqueId))
+        local UnresolvedCount = 0
+        for _, AilmentName in ipairs(OriginalAilmentsFlatList) do
+            if VerifyAilmentExists(PetModel, AilmentName) then
+                UnresolvedCount = UnresolvedCount + 1
+                warn(string.format("  FLAGGED: Initial ailment '%s' for pet '%s' was NOT resolved by the plan.", AilmentName, PetUniqueId))
+            end
+        end
+        if UnresolvedCount == 0 then
+            print("  All initial ailments for this plan were successfully resolved.")
+        else
+            print(string.format("  Total unresolved ailments from initial plan: %d", UnresolvedCount))
+        end
+    end
+
     print("--- Finished Task Plan Execution for Pet: " .. PetUniqueId .. " ---")
 end
 -- [[ END FUNCTION TO PROCESS TASK PLAN ]] --
@@ -1103,7 +1313,7 @@ while _G.PetFarmLoopInstanceId == currentInstanceLoopId and task.wait(5) do
                     -- Attempt to execute the plan
                     local PetModel = GetPetModelByUniqueId(PetDataForPlanner.unique)
                     if PetModel then
-                        ProcessTaskPlan(PetDataForPlanner.unique, PetModel, GeneratedPlan, AilmentActions)
+                        ProcessTaskPlan(PetDataForPlanner.unique, PetModel, GeneratedPlan, AilmentActions, PetRawData.ailments)
                     else
                         warn("Could not find PetModel for " .. PetDataForPlanner.unique .. ". Skipping plan execution for this pet.")
                     end
@@ -1129,6 +1339,52 @@ if _G.PetFarmLoopInstanceId ~= currentInstanceLoopId then
     print("PetFarmOfficial.luau loop with ID: " .. currentInstanceLoopId .. " stopping as a new instance has started (new active ID: " .. tostring(_G.PetFarmLoopInstanceId) .. ").")
 else
     print("PetFarmOfficial.luau loop with ID: " .. currentInstanceLoopId .. " stopping. If _G.PetFarmLoopInstanceId was manually cleared or script execution ended, this is expected.")
+end
+
+-- Helper function to wait for an ailment to clear with a timeout
+-- Returns true if the ailment cleared within the timeout, false otherwise.
+function WaitForAilmentClearanceWithTimeout(PetModel, AilmentName, TimeoutDurationSeconds, ExtraSuccessConditionFunction)
+    if not PetModel or not AilmentName or not TimeoutDurationSeconds then
+        warn(string.format("WaitForAilmentClearanceWithTimeout: Invalid arguments. PetModel: %s, AilmentName: %s, TimeoutDurationSeconds: %s",
+            tostring(PetModel), tostring(AilmentName), tostring(TimeoutDurationSeconds)))
+        return false -- Indicate failure due to bad arguments
+    end
+
+    local StartTime = os.clock()
+    local ConditionMet = false
+
+    -- warn(string.format("WaitForAilmentClearanceWithTimeout: Waiting up to %ds for ailment '%s' on pet '%s' to clear.", TimeoutDurationSeconds, AilmentName, GetPetUniqueIdString(PetModel)))
+
+    repeat
+        task.wait(1) -- Check every second
+
+        local AilmentExists = VerifyAilmentExists(PetModel, AilmentName)
+        local ExtraConditionResult = true -- Default to true if no extra function is provided
+        if ExtraSuccessConditionFunction then
+            local Success, Result = pcall(ExtraSuccessConditionFunction)
+            if Success then
+                ExtraConditionResult = Result
+            else
+                warn(string.format("WaitForAilmentClearanceWithTimeout: Error executing ExtraSuccessConditionFunction for ailment '%s': %s", AilmentName, tostring(Result)))
+                ExtraConditionResult = false -- Treat error in condition as condition not met
+            end
+        end
+
+        if not AilmentExists and ExtraConditionResult then
+            ConditionMet = true
+            -- print(string.format("WaitForAilmentClearanceWithTimeout: Ailment '%s' cleared for pet '%s'.", AilmentName, GetPetUniqueIdString(PetModel)))
+            break
+        end
+
+        if os.clock() - StartTime > TimeoutDurationSeconds then
+            warn(string.format("WaitForAilmentClearanceWithTimeout: TIMEOUT waiting for ailment '%s' on pet '%s' to clear after %d seconds. AilmentExists: %s, ExtraConditionResult: %s", 
+                AilmentName, GetPetUniqueIdString(PetModel), TimeoutDurationSeconds, tostring(AilmentExists), tostring(ExtraConditionResult)))
+            ConditionMet = false -- Explicitly false on timeout
+            break
+        end
+    until ConditionMet
+
+    return ConditionMet
 end
 
 
