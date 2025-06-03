@@ -10,6 +10,14 @@ local Fsys = ReplicatedStorage:FindFirstChild("Fsys")
 local SharedConstants = require(ReplicatedStorage["ClientDB"]["SharedConstants"])
 local ClientData = require(ReplicatedStorage["ClientModules"]["Core"]["ClientData"])
 
+-- Dehash the API
+table.foreach(getupvalue(require(ReplicatedStorage.ClientModules.Core.RouterClient.RouterClient).init, 7), function(RemoteName, Hashedremote)
+  if typeof(Hashedremote) ~= "Instance" then return end
+  if Hashedremote.Parent ~= API then return end
+  if not (Hashedremote:IsA("RemoteEvent") or Hashedremote:IsA("RemoteFunction")) then return end
+  Hashedremote.Name = RemoteName
+end)
+
 local TaskPlanner = loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/TaskPlanner.lua"), true))()
 local PlanFormatter = loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/PlanFormatter.lua"), true))()
 
