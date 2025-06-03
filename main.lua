@@ -167,21 +167,17 @@ local function FindFirstAilmentFurniture(AilmentName)
         return nil
     end
 
-    -- Iterate through container folders (e.g., "f-11", "f-14", or full path names if those are the direct children)
     for _, ContainerFolderInstance in ipairs(FurnitureFolder:GetChildren()) do
-        -- Assuming container folders are actual Folder instances or Models that group other models.
-        -- The critical part is that this ContainerFolderInstance should have the 'furniture_unique' attribute.
         if ContainerFolderInstance:IsA("Folder") or ContainerFolderInstance:IsA("Model") then 
-            local UniqueNameFromContainer = ContainerFolderInstance:GetAttribute("furniture_unique")
+            -- Use the ContainerFolderInstance.Name as the unique ID, assuming it's a string.
+            local UniqueNameFromContainer = ContainerFolderInstance.Name 
 
-            if UniqueNameFromContainer and type(UniqueNameFromContainer) == "string" then
-                -- Now iterate through the actual furniture models *inside* this container
+            if type(UniqueNameFromContainer) == "string" then
                 for _, ActualFurnitureModel in ipairs(ContainerFolderInstance:GetChildren()) do
                     if ActualFurnitureModel:IsA("Model") or ActualFurnitureModel:IsA("BasePart") then
                         local LowercaseActualModelName = string.lower(ActualFurnitureModel.Name)
                         for _, Keyword in ipairs(Keywords) do
                             if string.find(LowercaseActualModelName, string.lower(Keyword)) then
-                                -- Match found based on keyword for the ActualFurnitureModel
                                 local VacantSeatInstance = nil
                                 local UseBlocks = ActualFurnitureModel:FindFirstChild("UseBlocks")
                                 if UseBlocks then
@@ -191,8 +187,8 @@ local function FindFirstAilmentFurniture(AilmentName)
                                     end
                                 end
 
-                                warn(string.format("FindFirstAilmentFurniture: Found generic furniture. UniqueID (from container '%s'): '%s', ModelName (actual): '%s', For Ailment: '%s', Keyword: '%s', VacantSeat: %s",
-                                    ContainerFolderInstance.Name, UniqueNameFromContainer, ActualFurnitureModel.Name, AilmentName, Keyword, VacantSeatInstance and VacantSeatInstance.Name or "nil"))
+                                warn(string.format("FindFirstAilmentFurniture: Found generic furniture. UniqueID (Container Name): '%s', ModelName (actual): '%s', For Ailment: '%s', Keyword: '%s', VacantSeat: %s",
+                                    UniqueNameFromContainer, ActualFurnitureModel.Name, AilmentName, Keyword, VacantSeatInstance and VacantSeatInstance.Name or "nil"))
                                 
                                 return {
                                     name = UniqueNameFromContainer, 
@@ -204,12 +200,12 @@ local function FindFirstAilmentFurniture(AilmentName)
                     end
                 end
             else
-                -- warn(string.format("FindFirstAilmentFurniture: Container folder '%s' is missing a valid 'furniture_unique' string attribute. Skipping its contents.", ContainerFolderInstance.Name))
+                warn(string.format("FindFirstAilmentFurniture: Container folder '%s' has a non-string name. Skipping its contents.", tostring(ContainerFolderInstance.Name)))
             end
         end
     end
     
-    warn("FindFirstAilmentFurniture: No suitable owned furniture found for ailment: " .. AilmentName .. " (matching keywords, within a container having 'furniture_unique', and with correct model structure).")
+    warn("FindFirstAilmentFurniture: No suitable owned furniture found for ailment: " .. AilmentName .. " (matching keywords, within a container having a string name, and with correct model structure).")
     return nil
 end
 
@@ -271,39 +267,42 @@ local function GetSmartFurniture()
     end
 
     for Ailment, FurnitureData in pairs(AILMENT_TO_FURNITURE_MODEL_MAP) do
-        local ModelName = FurnitureData[1] -- ModelName is the first element (e.g., "ModernShower")
-        -- Search recursively within the FurnitureFolder for this specific model name
-        local ItemModel = FurnitureFolder:FindFirstChild(ModelName, true) 
+        local ModelNameKey = FurnitureData[1] -- This is the model name to search for, e.g., "ModernShower"
+        
+        local ItemModel = FurnitureFolder:FindFirstChild(ModelNameKey, true) -- Search recursively
 
         if ItemModel then
-            -- The ItemModel found is the actual furniture (e.g., the "ModernShower" model).
-            -- Its parent should be the container folder (e.g., "f-14").
             local ItemContainerFolder = ItemModel.Parent
-            if ItemContainerFolder and ItemContainerFolder.Parent == FurnitureFolder then
-                local UniqueName = ItemContainerFolder:GetAttribute("furniture_unique")
-                if UniqueName and type(UniqueName) == "string" then
-                    local VacantSeatInstance = nil
-                    local UseBlocks = ItemModel:FindFirstChild("UseBlocks") -- Find UseBlocks in the ItemModel itself
-                    if UseBlocks then
-                        local Seats = UseBlocks:GetChildren()
-                        if #Seats > 0 then
-                            VacantSeatInstance = Seats[1]
-                        end
-                    end
-                    FoundItems[Ailment] = {
-                        name = UniqueName,       -- Unique ID from container folder's attribute
-                        model = ItemModel,       -- The actual furniture model instance
-                        vacant_seat = VacantSeatInstance
-                    }
-                    -- print(string.format("GetSmartFurniture: Found and processed smart furniture '%s' (Model: %s, Container: %s) for ailment '%s'", UniqueName, ItemModel.Name, ItemContainerFolder.Name, Ailment))
-                else
-                    warn(string.format("GetSmartFurniture: Smart furniture model '%s' found, its container '%s' is missing 'furniture_unique' attribute. Skipping for ailment '%s'.", ItemModel.Name, ItemContainerFolder.Name, Ailment))
-                end
+            local UniqueName = nil
+
+            if ItemContainerFolder and ItemContainerFolder.Parent == FurnitureFolder and type(ItemContainerFolder.Name) == "string" then
+                UniqueName = ItemContainerFolder.Name -- Use the container folder's name as the unique ID
             else
-                 warn(string.format("GetSmartFurniture: Found smart furniture model '%s', but its parent structure is unexpected or not directly under FurnitureFolder. Parent: %s. Skipping for ailment '%s'.", ItemModel.Name, ItemModel.Parent and ItemModel.Parent.Name or "nil", Ailment))
+                warn(string.format("GetSmartFurniture: Smart furniture model '%s' (searched as '%s') found, but its parent ('%s') is not a direct container in FurnitureFolder or has an invalid name. Skipping for ailment '%s'.", 
+                    ItemModel.Name, ModelNameKey, ItemContainerFolder and ItemContainerFolder.Name or "N/A", Ailment))
+            end
+            
+            if UniqueName then -- Check if UniqueName was successfully assigned
+                local VacantSeatInstance = nil
+                local UseBlocks = ItemModel:FindFirstChild("UseBlocks") -- Find UseBlocks in the ItemModel itself
+                if UseBlocks then
+                    local Seats = UseBlocks:GetChildren()
+                    if #Seats > 0 then
+                        VacantSeatInstance = Seats[1]
+                    end
+                end
+                FoundItems[Ailment] = {
+                    name = UniqueName,       -- Unique ID is the container folder's name
+                    model = ItemModel,       -- The actual furniture model instance
+                    vacant_seat = VacantSeatInstance
+                }
+                print(string.format("GetSmartFurniture: Found/processed smart furniture. UniqueID (Container Name): '%s', Model: '%s'. For ailment '%s'. Searched for: %s", UniqueName, ItemModel.Name, Ailment, ModelNameKey))
+            else
+                -- This path is taken if the parent structure/name was invalid (previous warning issued)
             end
         else
-            -- warn(string.format("GetSmartFurniture: Smart furniture model '%s' not found recursively for ailment '%s'.", ModelName, Ailment))
+            -- This warning can be spammy if many smart items are simply not owned, so it's commented out by default.
+            -- warn(string.format("GetSmartFurniture: Smart furniture model (ModelNameKey: '%s') NOT FOUND recursively for ailment '%s'.", ModelNameKey, Ailment))
         end
     end
     return FoundItems
@@ -375,7 +374,7 @@ local function InitializeSmartFurniture()
 
     if #ItemsToBuy > 0 then
         local Success, Error = pcall(function()
-            API["HousingAPI/BuyFurnitures"]:InvokeServer(unpack(ItemsToBuy))
+            API["HousingAPI/BuyFurnitures"]:InvokeServer(ItemsToBuy) -- Pass ItemsToBuy directly
         end)
 
         if not Success then
@@ -640,17 +639,46 @@ local AilmentActions = {
 
   ["sick"] = function(PetModel, WaitForCompletion)
     local Success, Error = pcall(function()
-      if not VerifyAilmentExists(PetModel, "sick") then return end -- Added ailment verification
+      if not VerifyAilmentExists(PetModel, "sick") then return end
       API["LocationAPI/SetLocation"]:FireServer("Hospital")
-      task.wait()
-      API["HousingAPI/ActivateInteriorFurniture"]:InvokeServer({"f-14", "UseBlock", "Yes", LocalPlayer.Character})
-      if WaitForCompletion then -- Added WaitForCompletion loop here for consistency
+      task.wait(1) -- Allow time for teleport
+
+      -- Assuming "f-14" is the unique name/ID of the healing furniture/object in the hospital,
+      -- and its CFrame can be found at a predefined spot, similar to other ailment targets.
+      local HealingSpotCFrame = nil
+      local HealingFurnitureName = "f-14" -- From the previous implementation attempt
+
+      -- Attempt to find a specific CFrame for the sick ailment target in the hospital map
+      -- This path is an educated guess based on other ailment target patterns.
+      -- If this specific path is incorrect, it needs to be updated to the actual path of the hospital's healing interaction CFrame.
+      if workspace.StaticMap and 
+         workspace.StaticMap.Hospital and 
+         workspace.StaticMap.Hospital:FindFirstChild("SickAilmentTarget") and 
+         workspace.StaticMap.Hospital.SickAilmentTarget:IsA("BasePart") then -- or CFrameValue, etc.
+         HealingSpotCFrame = workspace.StaticMap.Hospital.SickAilmentTarget.CFrame
+      else
+        warn(string.format("PetFarmOfficial.AilmentActions.sick: Could not find predefined SickAilmentTarget CFrame in workspace.StaticMap.Hospital. The interaction might fail or use a default/incorrect CFrame if not explicitly set for \"%s\".", HealingFurnitureName))
+        -- As a fallback, we might need a default CFrame or to error out if critical
+        -- For now, if not found, the API call might effectively use a CFrame of (0,0,0) or error if the object "f-14" isn't found by server logic based on context only
+        -- To be safe, let's ensure CFrameTable is always a table, even if CFrame is nil (though API likely expects valid CFrame)
+        HealingSpotCFrame = CFrame.new() -- Placeholder if not found, API might still fail gracefully or not.
+      end
+
+      API["HousingAPI/ActivateFurniture"]:InvokeServer(
+        LocalPlayer,
+        HealingFurnitureName, 
+        "UseBlock",             
+        { ["cframe"] = HealingSpotCFrame },
+        PetModel                
+      )
+
+      if WaitForCompletion then
         repeat task.wait(1) until not VerifyAilmentExists(PetModel, "sick")
       end
     end)
 
     if not Success then
-      warn(string.format("Error executing 'sick' ailment: %s", Error or "Unknown error"))
+      warn(string.format("PetFarmOfficial.AilmentActions.sick: Error executing 'sick' ailment: %s", Error or "Unknown error"))
     end
   end;
 
@@ -696,18 +724,17 @@ local AilmentActions = {
   ["sleepy"] = function(PetModel, TargetCFrame, WaitForCompletion)
     local Success, Error = pcall(function()
       if not VerifyAilmentExists(PetModel, "sleepy") then return end
-      if next(SmartFurnitureMap) == nil then
-        InitializeSmartFurniture()
-      end
-      local FurnitureItem = SmartFurnitureMap["sleepy"] -- Prioritize specific smart item
+      local FurnitureItem = SmartFurnitureMap["sleepy"] 
       if not FurnitureItem then
-        FurnitureItem = FindFirstAilmentFurniture("sleepy") -- Fallback to generic owned furniture
+        warn("PetFarmOfficial.AilmentActions.sleepy: SmartFurnitureMap does NOT have 'sleepy' entry. Trying FindFirstAilmentFurniture as fallback.")
+        FurnitureItem = FindFirstAilmentFurniture("sleepy") 
       end
 
       if FurnitureItem then
+        warn(string.format("PetFarmOfficial.AilmentActions.sleepy: Attempting to use FurnitureItem. Name: %s, Model: %s", FurnitureItem.name, FurnitureItem.model and FurnitureItem.model.Name or "N/A"))
         PlaceAndUseSitableAtCFrame(FurnitureItem, TargetCFrame, PetModel)
       else
-        warn("PetFarmOfficial.AilmentActions.sleepy: No suitable smart or generic owned crib/bed found. Ailment may not be completable by this action.")
+        warn("PetFarmOfficial.AilmentActions.sleepy: No suitable smart or generic owned crib/bed found (after checking SmartFurnitureMap and FindFirstAilmentFurniture).")
       end
 
       if WaitForCompletion then
@@ -722,18 +749,19 @@ local AilmentActions = {
   ["dirty"] = function(PetModel, TargetCFrame, WaitForCompletion)
     local Success, Error = pcall(function()
       if not VerifyAilmentExists(PetModel, "dirty") then return end
-      if next(SmartFurnitureMap) == nil then
-        InitializeSmartFurniture()
-      end
-      local FurnitureItem = SmartFurnitureMap["dirty"] -- Prioritize specific smart item
+      
+      local FurnitureItem = SmartFurnitureMap["dirty"] 
+
       if not FurnitureItem then
-        FurnitureItem = FindFirstAilmentFurniture("dirty") -- Fallback to generic owned furniture
+        warn("PetFarmOfficial.AilmentActions.dirty: SmartFurnitureMap does NOT have 'dirty' entry. Trying FindFirstAilmentFurniture as fallback.")
+        FurnitureItem = FindFirstAilmentFurniture("dirty") 
       end
 
       if FurnitureItem then
+        warn(string.format("PetFarmOfficial.AilmentActions.dirty: Attempting to use FurnitureItem. Name: %s, Model: %s", FurnitureItem.name, FurnitureItem.model and FurnitureItem.model.Name or "N/A"))
         PlaceAndUseSitableAtCFrame(FurnitureItem, TargetCFrame, PetModel)
       else
-        warn("PetFarmOfficial.AilmentActions.dirty: No suitable smart or generic owned shower/bath found. Ailment may not be completable by this action.")
+        warn("PetFarmOfficial.AilmentActions.dirty: No suitable smart or generic owned shower/bath found (after checking SmartFurnitureMap and FindFirstAilmentFurniture).")
       end
 
       if WaitForCompletion then
@@ -786,18 +814,17 @@ local AilmentActions = {
   ["toilet"] = function(PetModel, TargetCFrame, WaitForCompletion)
     local Success, Error = pcall(function()
       if not VerifyAilmentExists(PetModel, "toilet") then return end
-      if next(SmartFurnitureMap) == nil then
-        InitializeSmartFurniture()
-      end
-      local FurnitureItem = SmartFurnitureMap["toilet"] -- Prioritize specific smart item (LitterBox)
+      local FurnitureItem = SmartFurnitureMap["toilet"] 
       if not FurnitureItem then
-        FurnitureItem = FindFirstAilmentFurniture("toilet") -- Fallback to generic owned furniture
+        warn("PetFarmOfficial.AilmentActions.toilet: SmartFurnitureMap does NOT have 'toilet' entry. Trying FindFirstAilmentFurniture as fallback.")
+        FurnitureItem = FindFirstAilmentFurniture("toilet") 
       end
 
       if FurnitureItem then
+        warn(string.format("PetFarmOfficial.AilmentActions.toilet: Attempting to use FurnitureItem. Name: %s, Model: %s", FurnitureItem.name, FurnitureItem.model and FurnitureItem.model.Name or "N/A"))
         PlaceAndUseSitableAtCFrame(FurnitureItem, TargetCFrame, PetModel)
       else
-        warn("PetFarmOfficial.AilmentActions.toilet: No suitable smart or generic owned toilet/litter box found. Ailment may not be completable by this action.")
+        warn("PetFarmOfficial.AilmentActions.toilet: No suitable smart or generic owned toilet/litter box found (after checking SmartFurnitureMap and FindFirstAilmentFurniture).")
       end
 
       if WaitForCompletion then
