@@ -904,21 +904,21 @@ local AilmentActions = {
 
   ["play"] = function(PetModel, WaitForCompletion)
     local Success, Error = pcall(function()
-      if not VerifyAilmentExists(PetModel, "catch") then return end
+      if not VerifyAilmentExists(PetModel, "play") then return end
 
       local OwnedToys = GetPlayerOwnedToys()
       local ThrowableToy = FindFirstThrowableToyInList(OwnedToys)
 
       if not ThrowableToy then
-        warn("PetFarmOfficial.AilmentActions.catch: No throwable toy found in player inventory. Cannot perform 'catch' action.")
+        warn("PetFarmOfficial.AilmentActions.play: No throwable toy found in player inventory. Cannot perform 'play' action.")
         return
       end
 
-      warn(string.format("PetFarmOfficial.AilmentActions.catch: Player must have toy '%s' (UniqueId: %s) equipped for the 'catch' action to proceed correctly. This is an assumed prerequisite state.", ThrowableToy.Name, ThrowableToy.UniqueId))
+      warn(string.format("PetFarmOfficial.AilmentActions.play: Player must have toy '%s' (UniqueId: %s) equipped for the 'play' action to proceed correctly. This is an assumed prerequisite state.", ThrowableToy.Name, ThrowableToy.UniqueId))
 
       local PetUniqueId = GetPetUniqueIdString(PetModel)
       if PetUniqueId == "stub_pet_unique_id_error" then
-          warn("PetFarmOfficial.AilmentActions.catch: Could not get a valid unique ID for the pet. Aborting 'catch' action.")
+          warn("PetFarmOfficial.AilmentActions.play: Could not get a valid unique ID for the pet. Aborting 'play' action.")
           return
       end
             
@@ -929,26 +929,20 @@ local AilmentActions = {
       -- Assuming CreatePetObject initiates the throw and pet interaction.
 
       if WaitForCompletion then
-        warn("PetFarmOfficial.AilmentActions.catch: Waiting for 'catch' ailment to clear. For full completion, also ensure IsToyEquippedByPlayer("..tostring(ThrowableToy and ThrowableToy.Name)..") is implemented and added to the wait condition.")
+        warn("PetFarmOfficial.AilmentActions.play: Waiting for 'play' ailment to clear. For full completion, also ensure IsToyEquippedByPlayer("..tostring(ThrowableToy and ThrowableToy.Name)..") is implemented and added to the wait condition.")
         
         local ExtraCondition = function()
-          -- If IsToyEquippedByPlayer is a stub always returning true, this doesn't add much yet.
-          -- Once implemented, it will correctly check if the toy is still (or back) in the player's equipped inventory.
-          -- For the purpose of the catch *ailment* clearing, we might primarly care about the ailment itself.
-          -- However, if the toy *not* being equipped anymore is part of a successful catch sequence (e.g., pet has it),
-          -- then the logic might need to be: `return not IsToyEquippedByPlayer(ThrowableToy)`
-          -- For now, assuming success = ailment clear AND toy is (somehow, eventually) re-quippable or considered available.
           return IsToyEquippedByPlayer(ThrowableToy) 
         end
 
-        local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "catch", 20, ExtraCondition) -- 20s timeout
+        local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "play", 20, ExtraCondition) -- 20s timeout
         if not Cleared then
-          warn(string.format("PetFarmOfficial.AilmentActions.catch: Ailment '%s' for pet '%s' (or extra condition) did NOT clear/meet within the timeout.", "catch", GetPetUniqueIdString(PetModel)))
+          warn(string.format("PetFarmOfficial.AilmentActions.play: Ailment '%s' for pet '%s' (or extra condition) did NOT clear/meet within the timeout.", "play", GetPetUniqueIdString(PetModel)))
         end
       end
     end)
     if not Success then
-      warn(string.format("Error executing 'catch' ailment: %s", Error or "Unknown error"))
+      warn(string.format("Error executing 'play' ailment: %s", Error or "Unknown error"))
     end
   end;
 
@@ -1049,33 +1043,33 @@ local function GetCurrentAilments()
 end
 
 -- Updated GetPetModelByUniqueId function
-local function GetPetModelByUniqueId(PetUniqueId)
+local function GetPetModelByUniqueId(PetUniqueIdToFind) 
     if not EquippedPetsModule then
         warn("GetPetModelByUniqueId: EquippedPetsModule is not loaded. Cannot fetch pet model.")
         return nil
     end
 
-    if not PetUniqueId then
-        warn("GetPetModelByUniqueId: PetUniqueId is nil.")
+    if not PetUniqueIdToFind then
+        warn("GetPetModelByUniqueId: PetUniqueIdToFind is nil.")
         return nil
     end
 
-    local wrapper = EquippedPetsModule.get_wrapper_from_unique(PetUniqueId, LocalPlayer)
+    print(string.format("DEBUG: GetPetModelByUniqueId calling EquippedPetsModule.get_wrapper_from_unique for ID: %s", tostring(PetUniqueIdToFind)))
+    local wrapper = EquippedPetsModule.get_wrapper_from_unique(PetUniqueIdToFind, LocalPlayer)
 
     if wrapper then
+        print(string.format("DEBUG: GetPetModelByUniqueId: Wrapper FOUND for ID: %s. Wrapper type: %s", tostring(PetUniqueIdToFind), type(wrapper)))
         local PetModel = wrapper.char
         if PetModel and PetModel:IsA("Model") then
-            -- print("GetPetModelByUniqueId: Found model for " .. PetUniqueId .. ":", PetModel:GetFullName())
             return PetModel
         else
-            warn("GetPetModelByUniqueId: Wrapper found for " .. PetUniqueId .. ", but .char (PetModel) is missing or not a Model.")
+            warn("GetPetModelByUniqueId: Wrapper found for " .. PetUniqueIdToFind .. ", but .char (PetModel) is missing or not a Model.")
             return nil
         end
     else
-        -- This warning might be spammy if pets are legitimately not equipped or if ID is for an unequipped pet.
-        -- Consider if this level of warning is always needed or if it should be more subtle for non-critical failures.
-        -- For now, keeping it to indicate that the system tried and failed for this ID.
-        warn("GetPetModelByUniqueId: No wrapper found for unique ID: " .. PetUniqueId .. ". Pet might not be equipped or ID is invalid.")
+        print(string.format("DEBUG: GetPetModelByUniqueId: Wrapper NOT FOUND for ID: %s", tostring(PetUniqueIdToFind)))
+        -- The original warning is kept as it's more descriptive for the user.
+        warn("GetPetModelByUniqueId: No wrapper found for unique ID: " .. PetUniqueIdToFind .. ". Pet might not be equipped or ID is invalid.")
         return nil
     end
 end
@@ -1118,11 +1112,18 @@ local function GetMyEquippedPetUniques()
         return {}
     end
 
+    print("DEBUG: GetMyEquippedPetUniques calling EquippedPetsModule.get_my_equipped_char_wrappers()")
     local EquippedWrappers = EquippedPetsModule.get_my_equipped_char_wrappers()
+    
+    if not EquippedWrappers then
+        print("DEBUG: GetMyEquippedPetUniques: EquippedPetsModule.get_my_equipped_char_wrappers() returned nil")
+    else
+        print("DEBUG: GetMyEquippedPetUniques: EquippedPetsModule.get_my_equipped_char_wrappers() returned a table with " .. #EquippedWrappers .. " wrappers.")
+    end
+
     local PetUniqueIds = {}
 
     if not EquippedWrappers or #EquippedWrappers == 0 then
-        -- print("GetMyEquippedPetUniques: No pet char wrappers found for local player. No pets appear to be equipped.")
         return PetUniqueIds
     end
 
@@ -1137,14 +1138,117 @@ local function GetMyEquippedPetUniques()
     return PetUniqueIds
 end
 
+local function SetupSafetyPlatforms()
+    local SafetyPlatformsFolder = workspace:FindFirstChild("SafetyPlatforms")
+    if not SafetyPlatformsFolder then
+        SafetyPlatformsFolder = Instance.new("Folder")
+        SafetyPlatformsFolder.Name = "SafetyPlatforms"
+        SafetyPlatformsFolder.Parent = workspace
+    end
+
+    local PlatformSize = Vector3.new(250, 4, 250) 
+    local PlatformColor = Color3.fromRGB(120, 130, 140) 
+    local PlatformMaterial = Enum.Material.Concrete
+
+    local function CreatePlatformIfMissing(Name, TargetCFrame)
+        if not TargetCFrame then
+            warn("SetupSafetyPlatforms: Cannot create platform '", Name, "' because TargetCFrame is nil.")
+            return
+        end
+
+        local ExistingPlatform = SafetyPlatformsFolder:FindFirstChild(Name)
+        if ExistingPlatform and ExistingPlatform:IsA("Part") then
+            return 
+        elseif ExistingPlatform then
+             ExistingPlatform:Destroy() 
+        end
+
+        local Platform = Instance.new("Part")
+        Platform.Name = Name
+        Platform.Size = PlatformSize
+        Platform.Anchored = true
+        Platform.CanCollide = true
+        Platform.Color = PlatformColor
+        Platform.Material = PlatformMaterial
+        Platform.TopSurface = Enum.SurfaceType.Smooth
+        Platform.BottomSurface = Enum.SurfaceType.Smooth
+        Platform.CFrame = TargetCFrame * CFrame.new(0, -(PlatformSize.Y / 2) - 2, 0) 
+        Platform.Parent = SafetyPlatformsFolder
+        print(string.format("SetupSafetyPlatforms: Created platform '%s'. Target CFrame: %s, Platform CFrame: %s", Name, tostring(TargetCFrame), tostring(Platform.CFrame)))
+    end
+
+    local ParkStaticMap = workspace:FindFirstChild("StaticMap")
+    if ParkStaticMap then
+        local ParkTarget = ParkStaticMap:FindFirstChild("Park")
+        if ParkTarget and ParkTarget:FindFirstChild("BoredAilmentTarget") and ParkTarget.BoredAilmentTarget:IsA("BasePart") then
+            CreatePlatformIfMissing("SafetyPlatform_Park", ParkTarget.BoredAilmentTarget.CFrame)
+        else
+            warn("SetupSafetyPlatforms: Could not find StaticMap.Park.BoredAilmentTarget CFrame or it's not a BasePart.")
+        end
+        local BeachTarget = ParkStaticMap:FindFirstChild("Beach")
+        if BeachTarget and BeachTarget:FindFirstChild("BeachPartyAilmentTarget") and BeachTarget.BeachPartyAilmentTarget:IsA("BasePart") then
+            CreatePlatformIfMissing("SafetyPlatform_Beach", BeachTarget.BeachPartyAilmentTarget.CFrame)
+        else
+            warn("SetupSafetyPlatforms: Could not find StaticMap.Beach.BeachPartyAilmentTarget CFrame or it's not a BasePart.")
+        end
+        local CampsiteTarget = ParkStaticMap:FindFirstChild("Campsite")
+        if CampsiteTarget and CampsiteTarget:FindFirstChild("CampsiteOrigin") and CampsiteTarget.CampsiteOrigin:IsA("BasePart") then
+            CreatePlatformIfMissing("SafetyPlatform_Campsite", CampsiteTarget.CampsiteOrigin.CFrame)
+        else
+            warn("SetupSafetyPlatforms: Could not find StaticMap.Campsite.CampsiteOrigin CFrame or it's not a BasePart.")
+        end
+    else
+        warn("SetupSafetyPlatforms: Could not find StaticMap.")
+    end
+
+    if LocalPlayer and LocalPlayer.Name then
+        local HouseInteriors = workspace:FindFirstChild("HouseInteriors")
+        if HouseInteriors then
+            local BlueprintFolder = HouseInteriors:FindFirstChild("blueprint")
+            if BlueprintFolder then
+                local PlayerHouseBlueprint = BlueprintFolder:FindFirstChild(LocalPlayer.Name)
+                if PlayerHouseBlueprint then
+                    local FloorsFolder = PlayerHouseBlueprint:FindFirstChild("Floors")
+                    if FloorsFolder then
+                        local FloorParts = FloorsFolder:GetChildren()
+                        if #FloorParts > 0 and FloorParts[1]:IsA("BasePart") then
+                            local MainFloorPart = FloorParts[1]
+                            local HomeFloorTopCFrame = MainFloorPart.CFrame * CFrame.new(0, MainFloorPart.Size.Y / 2, 0)
+                            CreatePlatformIfMissing("SafetyPlatform_Home_" .. LocalPlayer.Name, HomeFloorTopCFrame)
+                        else
+                            warn("SetupSafetyPlatforms: Could not find suitable floor part for player: ", LocalPlayer.Name)
+                        end
+                    else
+                        warn("SetupSafetyPlatforms: Could not find FloorsFolder for player: ", LocalPlayer.Name)
+                    end
+                else
+                    warn("SetupSafetyPlatforms: Could not find PlayerHouseBlueprint for player: ", LocalPlayer.Name)
+                end
+            else
+                warn("SetupSafetyPlatforms: Could not find HouseInteriors.blueprint folder.")
+            end
+        else
+            warn("SetupSafetyPlatforms: Could not find HouseInteriors folder.")
+        end
+    else
+        warn("SetupSafetyPlatforms: LocalPlayer or LocalPlayer.Name not available for Home platform.")
+    end
+end
+
 -- [[ FUNCTION TO PROCESS TASK PLAN - TO BE EXPANDED ]] --
 local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentActions, OriginalAilmentsFlatList)
     print(string.format("--- Starting Task Plan Execution for Pet: %s (%s) ---", PetModel.Name, PetUniqueId))
+
+    print("    DEBUG: AllAilmentActions keys available at start of ProcessTaskPlan:")
+    local ActionKeys = {}
+    for key, _ in pairs(AllAilmentActions) do table.insert(ActionKeys, key) end
+    table.sort(ActionKeys)
+    for _, keyName in ipairs(ActionKeys) do print("      - " .. keyName .. " (type: " .. type(AllAilmentActions[keyName]) .. ")") end
+
     if GeneratedPlan and #GeneratedPlan > 0 then
         print("  Initial ailments for this plan: [" .. table.concat(OriginalAilmentsFlatList or {}, ", ") .. "]")
     else
         print("ProcessTaskPlan: No tasks in the generated plan for " .. PetUniqueId .. ". Initial ailments: [" .. table.concat(OriginalAilmentsFlatList or {}, ", ") .. "]")
-        -- Even if no plan, run the check for originally detected ailments
     end
 
     if GeneratedPlan and #GeneratedPlan > 0 then
@@ -1154,32 +1258,39 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
 
             local ActionToExecute = nil
             local ActionRequiresTargetCFrame = false
-            local AilmentNameForAction = TaskData.ailment
-
+            local AilmentNameForAction = TaskData.ailment 
+            
             if TaskData.type == "location" or TaskData.type == "instant" or TaskData.type == "remaining" then
-                AilmentNameForAction = TaskData.ailment
-                if AllAilmentActions[AilmentNameForAction] then 
-                    ActionToExecute = AllAilmentActions[AilmentNameForAction]
-                    if AilmentNameForAction == "sleepy" or AilmentNameForAction == "dirty" or AilmentNameForAction == "toilet" then
-                        ActionRequiresTargetCFrame = true -- This will now default to .Smart if CFrame is determined by ProcessTaskPlan
+                if AilmentNameForAction then
+                    local FoundAction = AllAilmentActions[AilmentNameForAction]
+                    if FoundAction then 
+                        ActionToExecute = FoundAction
+                        if AilmentNameForAction == "sleepy" or AilmentNameForAction == "dirty" or AilmentNameForAction == "toilet" then
+                            ActionRequiresTargetCFrame = true
+                        end
                     end
                 end
             elseif TaskData.type == "location_bonus" then 
-                AilmentNameForAction = TaskData.ailment 
-                if AllAilmentActions[AilmentNameForAction] and type(AllAilmentActions[AilmentNameForAction]) == "table" then 
-                    ActionToExecute = AllAilmentActions[AilmentNameForAction] -- Keep as table, dispatch to .Smart or .Standard later
-                    ActionRequiresTargetCFrame = true 
-                elseif AllAilmentActions[AilmentNameForAction] then 
-                    ActionToExecute = AllAilmentActions[AilmentNameForAction]
+                if AilmentNameForAction then
+                    local FoundAction = AllAilmentActions[AilmentNameForAction]
+                    if FoundAction and type(FoundAction) == "table" then 
+                        ActionToExecute = FoundAction 
+                        ActionRequiresTargetCFrame = true 
+                    elseif FoundAction then 
+                        ActionToExecute = FoundAction
+                    end
                 end
-            else
+            else 
                AilmentNameForAction = TaskData.ailment or TaskData.description 
-               if AllAilmentActions[AilmentNameForAction] then
-                    ActionToExecute = AllAilmentActions[AilmentNameForAction]
-               end
+               if AilmentNameForAction then
+                    local FoundAction = AllAilmentActions[AilmentNameForAction]
+                   if FoundAction then
+                        ActionToExecute = FoundAction
+                   end
+                end
             end
             
-            if ActionToExecute then
+            if ActionToExecute ~= nil then 
                 local TargetCFrame = nil
                 if ActionRequiresTargetCFrame then
                     if PetModel and PetModel.PrimaryPart then
@@ -1187,14 +1298,13 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
                         print(string.format("    Using placeholder TargetCFrame for '%s' action near pet.", AilmentNameForAction))
                     else
                         warn("    ProcessTaskPlan: Cannot determine TargetCFrame for action ", AilmentNameForAction, ": PetModel or PrimaryPart missing. Skipping this task.")
-                        ActionRequiresTargetCFrame = false -- Prevent trying to call .Smart without a CFrame
-                        -- No continue here, will attempt .Standard if possible or fail if ActionToExecute is only a function expecting CFrame
+                        ActionRequiresTargetCFrame = false 
                     end
                 end
 
                 print("    Executing action for: " .. (AilmentNameForAction or TaskData.type))
                 local Success, ErrorMsg
-                if ActionRequiresTargetCFrame and TargetCFrame then -- Ensure TargetCFrame is not nil if required
+                if ActionRequiresTargetCFrame and TargetCFrame then 
                     if type(ActionToExecute) == "table" and ActionToExecute.Smart then
                         warn("    ProcessTaskPlan: For ", AilmentNameForAction, ", Smart method selected with TargetCFrame.")
                         Success, ErrorMsg = pcall(ActionToExecute.Smart, PetModel, TargetCFrame, true)
@@ -1232,7 +1342,6 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
         end
     end
 
-    -- Post-execution check for unresolved ailments
     if OriginalAilmentsFlatList and #OriginalAilmentsFlatList > 0 then
         print(string.format("--- Checking unresolved ailments for Pet: %s (%s) ---", PetModel.Name, PetUniqueId))
         local UnresolvedCount = 0
@@ -1258,75 +1367,116 @@ local currentInstanceLoopId = HttpService:GenerateGUID(false)
 _G.PetFarmLoopInstanceId = currentInstanceLoopId
 print("PetFarmOfficial.luau loop started with ID: " .. currentInstanceLoopId .. ". To stop this specific loop instance if script is re-run, simply re-run the script. To pause operations, set _G.PetFarm = false.")
 
+SetupSafetyPlatforms() -- Call the function to create platforms
+
 local LoopCounter = 0
+local IsEquippedPetsModuleReportingNoPets = false -- Tracks if we've actively logged that the module is empty
+
 while _G.PetFarmLoopInstanceId == currentInstanceLoopId and task.wait(5) do
     LoopCounter = LoopCounter + 1
     if _G.PetFarm == true then
-        if LoopCounter % 5 == 0 then 
+        if LoopCounter % 5 == 0 and not IsEquippedPetsModuleReportingNoPets then 
+            -- Only print generic active message if module isn't in a known error state
             print("PetFarm is ACTIVE (loop ID: " .. currentInstanceLoopId .. ", checked at " .. os.date("%X") .. ")")
         end
         
-        local AllPetsAilmentsData = GetCurrentAilments()
+        local CurrentEquippedPetUniqueIds = GetMyEquippedPetUniques()
         
-        if #AllPetsAilmentsData > 0 then
-            print(os.date("%X") .. " - Raw Detected Pet Ailments Report (Loop ID: " .. currentInstanceLoopId .. "):")
-            for _, PetRawData in ipairs(AllPetsAilmentsData) do
-                print(string.format("  Pet Unique ID: %s, Ailments: [%s]", PetRawData.unique, table.concat(PetRawData.ailments, ", ")))
+        if #CurrentEquippedPetUniqueIds == 0 then
+            if not IsEquippedPetsModuleReportingNoPets then
+                warn(os.date("%X") .. " - PetFarm CRITICAL WARNING: EquippedPetsModule is reporting NO equipped pets. All PetFarm operations requiring pet models will be paused until the module provides pet data. (Loop ID: " .. currentInstanceLoopId .. ")")
+                IsEquippedPetsModuleReportingNoPets = true
+            elseif LoopCounter % 10 == 0 then -- Less frequent reminder if still no pets
+                warn(os.date("%X") .. " - PetFarm INFO: EquippedPetsModule continues to report NO equipped pets. Operations remain paused. (Loop ID: " .. currentInstanceLoopId .. ")")
             end
-            print("---") 
+            -- Skip further processing for this iteration by not having an 'else' block here that does the main work
+        else 
+            -- Module has pets, proceed with normal processing
+            if IsEquippedPetsModuleReportingNoPets then
+                print(os.date("%X") .. " - PetFarm INFO: EquippedPetsModule is NOW reporting equipped pets (" .. #CurrentEquippedPetUniqueIds .. " found). Resuming normal operations. (Loop ID: " .. currentInstanceLoopId .. ")")
+                IsEquippedPetsModuleReportingNoPets = false -- Reset the flag
+            end
 
-            local PlannerAilmentCategories = TaskPlanner:GetAilmentCategories()
+            -- DEBUG: Print all equipped pet unique IDs from Module (can be commented out later)
+            print(os.date("%X") .. " - DEBUG: Equipped Pet Unique IDs from Module: [" .. table.concat(CurrentEquippedPetUniqueIds, ", ") .. "] (Loop ID: " .. currentInstanceLoopId .. ")")
+            
+            local AllPetsAilmentsData = GetCurrentAilments()
+            local PlannerAilmentCategories = TaskPlanner:GetAilmentCategories() 
+            
+            if #AllPetsAilmentsData > 0 then
+                print(os.date("%X") .. " - Raw Detected Pet Ailments Report (Loop ID: " .. currentInstanceLoopId .. "):")
+                for _, PetRawDataLoopVar in ipairs(AllPetsAilmentsData) do 
+                    print(string.format("  Pet Unique ID: %s, Ailments: [%s]", PetRawDataLoopVar.unique, table.concat(PetRawDataLoopVar.ailments, ", ")))
+                end
+                print("---") 
 
-            for _, PetRawData in ipairs(AllPetsAilmentsData) do
-                local PetDataForPlanner = {
-                    unique = PetRawData.unique,
-                    ailments = {
-                        location = {},
-                        feeding = {},
-                        playful = {},
-                        static = {},
-                        hybrid = {},
-                        meta_tasks = {},
-                        unknown = {}
-                    }
-                }
+                for _, PetRawData in ipairs(AllPetsAilmentsData) do
+                    local PetUniqueId = PetRawData.unique
+                    local PetModel = GetPetModelByUniqueId(PetUniqueId)
+                    local ShouldProcessPet = true -- Flag to control processing for this pet
 
-                for _, AilmentName in ipairs(PetRawData.ailments) do
-                    local FoundCategory = false
-                    for CategoryName, CategoryData in pairs(PlannerAilmentCategories) do
-                        if type(CategoryData) == "table" and CategoryData[AilmentName] then
-                            table.insert(PetDataForPlanner.ailments[CategoryName], AilmentName)
-                            FoundCategory = true
-                            break 
+                    if not PetModel then
+                        warn(string.format("PetFarm: Pet '%s' has ailments but its model was not found via EquippedPetsModule. Attempting to equip... (Loop ID: %s)", PetUniqueId, currentInstanceLoopId))
+                        API["ToolAPI/Equip"]:InvokeServer(PetUniqueId, {use_sound_delay = false, equip_as_last = false})
+                        task.wait(3) 
+                        
+                        PetModel = GetPetModelByUniqueId(PetUniqueId) 
+                        
+                        if not PetModel then
+                            warn(string.format("PetFarm: Failed to retrieve model for pet '%s' after equip attempt, or module did not update. Skipping plan for this pet. (Loop ID: %s)", PetUniqueId, currentInstanceLoopId))
+                            ShouldProcessPet = false -- Mark this pet to be skipped
+                        else
+                            print(string.format("PetFarm: Successfully re-acquired model for pet '%s' after equip attempt. (Loop ID: %s)", PetUniqueId, currentInstanceLoopId))
                         end
                     end
-                    if not FoundCategory then
-                        table.insert(PetDataForPlanner.ailments.unknown, AilmentName)
-                    end
-                end
-                
-                if TaskPlanner and PlanFormatter then
-                    print(string.format("Generating plan for Pet: %s (Loop ID: %s)", PetDataForPlanner.unique, currentInstanceLoopId))
-                    local GeneratedPlan = TaskPlanner:GenerateTaskPlan(PetDataForPlanner, true)
-                    PlanFormatter.Print(GeneratedPlan, PetDataForPlanner.unique, PlannerAilmentCategories)
                     
-                    -- Attempt to execute the plan
-                    local PetModel = GetPetModelByUniqueId(PetDataForPlanner.unique)
-                    if PetModel then
-                        ProcessTaskPlan(PetDataForPlanner.unique, PetModel, GeneratedPlan, AilmentActions, PetRawData.ailments)
-                    else
-                        warn("Could not find PetModel for " .. PetDataForPlanner.unique .. ". Skipping plan execution for this pet.")
+                    if ShouldProcessPet and PetModel then 
+                        local PetDataForPlanner = {
+                            unique = PetRawData.unique,
+                            ailments = {
+                                location = {},
+                                feeding = {},
+                                playful = {},
+                                static = {},
+                                hybrid = {},
+                                meta_tasks = {},
+                                unknown = {}
+                            }
+                        }
+
+                        for _, AilmentName in ipairs(PetRawData.ailments) do
+                            local FoundCategory = false
+                            for CategoryName, CategoryData in pairs(PlannerAilmentCategories) do
+                                if type(CategoryData) == "table" and CategoryData[AilmentName] then
+                                    table.insert(PetDataForPlanner.ailments[CategoryName], AilmentName)
+                                    FoundCategory = true
+                                    break 
+                                end
+                            end
+                            if not FoundCategory then
+                                table.insert(PetDataForPlanner.ailments.unknown, AilmentName)
+                            end
+                        end
+                        
+                        if TaskPlanner and PlanFormatter then
+                            print(string.format("Generating plan for Pet: %s (Loop ID: %s)", PetDataForPlanner.unique, currentInstanceLoopId))
+                            local GeneratedPlan = TaskPlanner:GenerateTaskPlan(PetDataForPlanner, true)
+                            PlanFormatter.Print(GeneratedPlan, PetDataForPlanner.unique, PlannerAilmentCategories)
+                            
+                            ProcessTaskPlan(PetDataForPlanner.unique, PetModel, GeneratedPlan, AilmentActions, PetRawData.ailments)
+                        else
+                            warn("TaskPlanner or PlanFormatter not loaded correctly. Cannot generate or print plan. (Loop ID: " .. currentInstanceLoopId .. ")")
+                        end
                     end
-                else
-                    warn("TaskPlanner or PlanFormatter not loaded correctly. Cannot generate or print plan. (Loop ID: " .. currentInstanceLoopId .. ")")
+                    -- If ShouldProcessPet is false, or PetModel is somehow still nil, this iteration for the pet ends here and loop continues.
+                end
+
+            else
+                if LoopCounter % 10 == 0 then 
+                     print(os.date("%X") .. " - No current pet ailments detected for any pet (and module is reporting pets). (Loop ID: " .. currentInstanceLoopId .. ")")
                 end
             end
-
-        else
-            if LoopCounter % 10 == 0 then 
-                 print(os.date("%X") .. " - No current pet ailments detected for any pet. (Loop ID: " .. currentInstanceLoopId .. ")")
-            end
-        end
+        end -- End of the main else block (if #CurrentEquippedPetUniqueIds > 0)
     else
         if LoopCounter % 30 == 0 then 
             print("PetFarm is INACTIVE (loop ID: " .. currentInstanceLoopId .. ", checked at " .. os.date("%X") .. ")")
