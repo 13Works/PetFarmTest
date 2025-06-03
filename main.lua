@@ -49,8 +49,7 @@ local AILMENT_TO_FURNITURE_MODEL_MAP = {
 }
 
 local function GetPlayerOwnedToys()
-  warn("GetPlayerOwnedToys: Using STUBBED toy inventory.")
-  return ClientData["inventory"]["toys"]
+  return ClientData.get_data()[LocalPlayer["Name"]]["inventory"]["toys"]
 end
 
 local function FindFirstThrowableToyInList(OwnedToysTable)
