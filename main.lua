@@ -567,7 +567,7 @@ local AilmentActions = {
       warn(string.format("Error executing 'bored' ailment: %s", Error or "Unknown error"))
     end
   end;
-  ["beach"] = function(PetModel, WaitForCompletion)
+  ["beach_party"] = function(PetModel, WaitForCompletion)
     local Success, Error = pcall(function()
       if not VerifyAilmentExists(PetModel, "beach_party") then return end 
       local AilmentTargetCFrame = workspace.StaticMap.Beach.BeachPartyAilmentTarget.CFrame
@@ -902,7 +902,7 @@ local AilmentActions = {
     end
   };
 
-  ["catch"] = function(PetModel, WaitForCompletion)
+  ["play"] = function(PetModel, WaitForCompletion)
     local Success, Error = pcall(function()
       if not VerifyAilmentExists(PetModel, "catch") then return end
 
