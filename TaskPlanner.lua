@@ -1,7 +1,5 @@
 --!strict
 
-local SharedConstants = require(game.ReplicatedStorage.ClientDB.SharedConstants)
-
 -- TaskPlanner.luau - Optimized Pet Care Task Planning Module
 
 return {
@@ -30,19 +28,19 @@ return {
         pizza_party = {job_type = "location", time = 20},
       },
       feeding = {
-        hungry = {job_type = "consume", time = SharedConstants.full_food_bowl_drink_duration},
-        thirsty = {job_type = "consume", time = SharedConstants.full_water_bowl_drink_duration},
+        hungry = {job_type = "consume", time = 5},
+        thirsty = {job_type = "consume", time = 5},
       },
       playful = {
         walk = {job_type = "play", time = 15},
         pet_me = {job_type = "play", time = 5},
         ride = {job_type = "play", time = 15},
-        catch = {job_type = "play", time = 8},
+        play = {job_type = "play", time = 8},
       },
       static = {
-        sleepy = {job_type = "sit", time = SharedConstants.full_sleep_duration},
-        dirty = {job_type = "sit", time = SharedConstants.full_shower_duration},
-        toilet = {job_type = "sit", time = SharedConstants.full_toilet_duration},
+        sleepy = {job_type = "sit", time = 10},
+        dirty = {job_type = "sit", time = 10},
+        toilet = {job_type = "sit", time = 10},
       },
       hybrid = {
         bored = {location_method = {job_type = "location", time = 20}, static_method = {job_type = "sit", time = 20}},
@@ -60,13 +58,13 @@ return {
     if self.LOCATION_CAPABILITIES then return self.LOCATION_CAPABILITIES end
 
     self.LOCATION_CAPABILITIES = {
-      salon = {"sleepy", "hungry", "thirsty", "pet_me", "catch", "walk", "ride"},
-      hospital = {"sleepy", "thirsty", "hungry", "pet_me", "catch", "walk", "ride"},
-      school = {"sleepy", "hungry", "thirsty", "pet_me", "catch", "walk", "ride"},
-      camping = {"sleepy", "hungry", "thirsty", "pet_me", "catch", "walk", "ride"},
-      bored = {"hungry", "thirsty", "pet_me", "catch", "walk", "ride"},
-      beach_party = {"hungry", "thirsty", "pet_me", "catch", "walk", "ride"},
-      pizza_party = {"hungry", "thirsty", "pet_me", "catch", "walk", "ride"},
+      salon = {"sleepy", "hungry", "thirsty", "pet_me", "play", "walk", "ride"},
+      hospital = {"sleepy", "thirsty", "hungry", "pet_me", "play", "walk", "ride"},
+      school = {"sleepy", "hungry", "thirsty", "pet_me", "play", "walk", "ride"},
+      camping = {"sleepy", "hungry", "thirsty", "pet_me", "play", "walk", "ride"},
+      bored = {"hungry", "thirsty", "pet_me", "play", "walk", "ride"},
+      beach_party = {"hungry", "thirsty", "pet_me", "play", "walk", "ride"},
+      pizza_party = {"hungry", "thirsty", "pet_me", "play", "walk", "ride"},
     }
     return self.LOCATION_CAPABILITIES
   end;
@@ -279,7 +277,7 @@ return {
             (Cfg.static[AilmentName] and (AilmentName == "sleepy" and 2 or 1)) or 
             (AilmentName == "pet_me" and 1.5) or  
             (AilmentName == "walk" and 1.2) or   
-            (AilmentName == "catch" and 1.0) or  
+            (AilmentName == "play" and 1.0) or  
             (AilmentName == "ride" and 1.0) or 1 
           table.insert(AvailableCandidates, {name = AilmentName, time = Time, priority = Priority, index_in_remaining = i})
         end
@@ -625,7 +623,7 @@ return {
     warn("Initial RemainingAilmentNames: " .. table.concat(RemainingAilmentNames, ", ")) 
 
     local ProcessedTasks = {} 
-    local HandledAilments = {} -- Stores counts of ailments handled by walk/catch or static hybrid packing
+    local HandledAilments = {} -- Stores counts of ailments handled by walk/play or static hybrid packing
 
     -- Helper to count occurrences in an array
     local function CountOccurrences(List, Item) 
@@ -652,49 +650,49 @@ return {
       return { name = AilmentName, time = Time or 0, priority = Priority }
     end
 
-    -- STAGE 1: Handle Walk + Catch combination
-    local CurrentRemainingAfterWalkCatch = {}
+    -- STAGE 1: Handle Walk + Play combination
+    local CurrentRemainingAfterWalkPlay = {}
     local WalkCount = 0
-    local CatchCount = 0
+    local PlayCount = 0
     for _, Name in ipairs(RemainingAilmentNames) do
       if Name == "walk" then WalkCount = WalkCount + 1
-      elseif Name == "catch" then CatchCount = CatchCount + 1
+      elseif Name == "play" then PlayCount = PlayCount + 1
       end
     end
 
-    local PairsToForm = math.min(WalkCount, CatchCount)
+    local PairsToForm = math.min(WalkCount, PlayCount)
     if PairsToForm > 0 then
       table.insert(ProcessedTasks, {
         type = "combined_play",
-        ailment = "walk_and_catch",
-        description = "walk + catch",
+        ailment = "walk_and_play",
+        description = "walk + play",
         time = 17 * PairsToForm,
         count = PairsToForm
       })
       local WalksAccountedFor = PairsToForm
-      local CatchAccountedFor = PairsToForm
+      local PlaysAccountedFor = PairsToForm
       for _, Name in ipairs(RemainingAilmentNames) do
         if Name == "walk" and WalksAccountedFor > 0 then
           WalksAccountedFor = WalksAccountedFor - 1
           HandledAilments[Name] = (HandledAilments[Name] or 0) + 1 
-        elseif Name == "catch" and CatchAccountedFor > 0 then
-          CatchAccountedFor = CatchAccountedFor - 1
+        elseif Name == "play" and PlaysAccountedFor > 0 then
+          PlaysAccountedFor = PlaysAccountedFor - 1
           HandledAilments[Name] = (HandledAilments[Name] or 0) + 1 
         else
-          table.insert(CurrentRemainingAfterWalkCatch, Name) 
+          table.insert(CurrentRemainingAfterWalkPlay, Name) 
         end
       end
     else
-      for _, Name in ipairs(RemainingAilmentNames) do table.insert(CurrentRemainingAfterWalkCatch, Name) end 
+      for _, Name in ipairs(RemainingAilmentNames) do table.insert(CurrentRemainingAfterWalkPlay, Name) end 
     end
-    warn("Remaining after walk+catch: " .. table.concat(CurrentRemainingAfterWalkCatch, ", ")) 
+    warn("Remaining after walk+play: " .. table.concat(CurrentRemainingAfterWalkPlay, ", ")) 
 
     -- STAGE 2: Handle Static Hybrids and their parallel tasks
-    for _, AilmentName in ipairs(CurrentRemainingAfterWalkCatch) do
+    for _, AilmentName in ipairs(CurrentRemainingAfterWalkPlay) do
       local IsStaticHybridWithInfo = StaticParallelInfo and StaticParallelInfo[AilmentName]
 
       if IsStaticHybridWithInfo then
-        local TotalInstancesOfHybridInCurrentList = CountOccurrences(CurrentRemainingAfterWalkCatch, AilmentName)
+        local TotalInstancesOfHybridInCurrentList = CountOccurrences(CurrentRemainingAfterWalkPlay, AilmentName)
         local AlreadyHandledAsMainHybrid = HandledAilments[AilmentName] or 0
         
         -- Check if this specific instance of AilmentName (if duplicated) can be processed as a main static hybrid
@@ -723,7 +721,7 @@ return {
               end)
 
               for _, PCandidate in ipairs(SortedParallelCandidates) do
-                local AvailableInstancesOfParallel = CountOccurrences(CurrentRemainingAfterWalkCatch, PCandidate.name)
+                local AvailableInstancesOfParallel = CountOccurrences(CurrentRemainingAfterWalkPlay, PCandidate.name)
                 local HandledInstancesOfParallel = HandledAilments[PCandidate.name] or 0
 
                 if HandledInstancesOfParallel < AvailableInstancesOfParallel and CurrentCapacityUsed + PCandidate.time <= MainHybridCapacity then
@@ -753,7 +751,7 @@ return {
     local AilmentNamesForFinalPass = {}
     local TempHandledCounts = table.clone(HandledAilments) -- Use a mutable copy for this stage
 
-    for _, AilmentName in ipairs(CurrentRemainingAfterWalkCatch) do
+    for _, AilmentName in ipairs(CurrentRemainingAfterWalkPlay) do
       if (TempHandledCounts[AilmentName] or 0) > 0 then
         TempHandledCounts[AilmentName] = TempHandledCounts[AilmentName] - 1 -- Account for this instance
       else
@@ -792,7 +790,7 @@ return {
 
     table.sort(ProcessedTasks, function(a, b)
       local GetPriority = function(Task) 
-        local PRIORITY_MAP = ({ dirty=5, sleepy=4, hungry=3, thirsty=3, pet_me=1.5, walk=1, ride=1, toilet=0.5, catch=1.4 })
+        local PRIORITY_MAP = ({ dirty=5, sleepy=4, hungry=3, thirsty=3, pet_me=1.5, walk=1, ride=1, toilet=0.5, play=1.4 })
         if Task.type == "static_hybrid" then return 100 end
         if Task.type == "static_hybrid_bonus" then return 99 end
         if Task.type == "combined_play" then return 2.0 end
