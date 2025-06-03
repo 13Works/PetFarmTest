@@ -506,6 +506,28 @@ local function HandleSmartOrTeleportAilment(AilmentTargetCFrame, LocationName, P
   TeleportToAilmentLocation(LocationName)
 end
 
+--[[
+  Feeds a pet with a given food item.
+  @param FoodName string -- The name of the food item to feed the pet
+]]
+function FeedPet(FoodName)
+  API["ShopAPI/BuyItem"]:InvokeServer("food", FoodName, {})
+	local Inventory = ClientData.get_data()[LocalPlayer["Name"]]["inventory"]
+	local Success = false
+
+	for Unique, Info in Inventory.food do
+		if Info.kind == FoodName then
+			API["PetAPI/CreatePetObject"]:InvokeServer("__Enum_PetObjectCreatorType_2", {["unique_id"] = Unique})
+			API["PetAPI/ConsumeFoodObject"]:FireServer(Unique); Success = true
+			break
+		end
+	end
+
+	if not Success then
+		warn("Error feeding pet. Skipping task.")
+	end
+end
+
 local AilmentActions = {
   ["bored"] = function(PetModel, WaitForCompletion)
     local Success, ErrorMessage = pcall(function() -- Renamed Error to ErrorMessage
@@ -566,8 +588,9 @@ local AilmentActions = {
     ["Standard"] = function(PetModel, WaitForCompletion)
       local Success, ErrorMessage = pcall(function() -- Renamed Error to ErrorMessage
         if not VerifyAilmentExists(PetModel, "hungry") then return end
-        warn(string.format("PetFarmOfficial.AilmentActions.hungry.Standard: Simulating purchase of Apple and feeding to %s. Implement actual item purchase and use API.", PetModel["Name"]))
-        -- Add actual API calls here when available
+
+        FeedPet("teachers_apple")
+
         if WaitForCompletion then
           local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "hungry", 25) -- 25s timeout (SharedConstants.full_food_bowl_drink_duration is ~16s)
           if not Cleared then
@@ -608,8 +631,9 @@ local AilmentActions = {
     ["Standard"] = function(PetModel, WaitForCompletion)
       local Success, ErrorMessage = pcall(function() -- Renamed Error to ErrorMessage
         if not VerifyAilmentExists(PetModel, "thirsty") then return end
-        warn(string.format("PetFarmOfficial.AilmentActions.thirsty.Standard: Simulating purchase of CupOfTea and feeding to %s. Implement actual item purchase and use API.", PetModel["Name"]))
-        -- Add actual API calls here when available
+        
+        FeedPet("water")
+
         if WaitForCompletion then
           local Cleared = WaitForAilmentClearanceWithTimeout(PetModel, "thirsty", 25) -- 25s timeout (SharedConstants.full_water_bowl_drink_duration is ~16s)
           if not Cleared then
