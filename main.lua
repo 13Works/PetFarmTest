@@ -18,8 +18,8 @@ table.foreach(getupvalue(require(ReplicatedStorage.ClientModules.Core.RouterClie
   Hashedremote.Name = RemoteName
 end)
 
-local TaskPlanner = loadstring(game:HttpGet("https://raw.githubusercontent.com/13Works/PetFarmTest/main/TaskPlanner.lua", true)()
-local PlanFormatter = loadstring(game:HttpGet("https://raw.githubusercontent.com/13Works/PetFarmTest/main/PlanFormatter.lua", true)()
+local TaskPlanner = loadstring(game:HttpGet("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/TaskPlanner.lua", true)()
+local PlanFormatter = loadstring(game:HttpGet("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/PlanFormatter.lua", true)()
 
 local LocalPlayer = Players.LocalPlayer
 
