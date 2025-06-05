@@ -69,7 +69,7 @@ local AilmentActions = {
           print(string.format("AilmentActions.bored: Ailment '%s' not present for pet '%s' before action.", "bored", Ad:get_pet_unique_id_string(PetModel)))
           return
         end
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "bored", 30, nil, CoreActionLambda)
+        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "bored", 40, nil, CoreActionLambda)
         if not DidAilmentClear then
           warn(string.format("PetFarmOfficial.AilmentActions.bored: %s", ResultMessage))
         else
@@ -97,7 +97,7 @@ local AilmentActions = {
           print(string.format("AilmentActions.beach_party: Ailment '%s' not present for pet '%s' before action.", "beach_party", Ad:get_pet_unique_id_string(PetModel)))
           return
         end
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "beach_party", 30, nil, CoreActionLambda)
+        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "beach_party", 40, nil, CoreActionLambda)
         if not DidAilmentClear then
           warn(string.format("PetFarmOfficial.AilmentActions.beach_party: %s", ResultMessage))
         else
@@ -125,7 +125,7 @@ local AilmentActions = {
           print(string.format("AilmentActions.camping: Ailment '%s' not present for pet '%s' before action.", "camping", Ad:get_pet_unique_id_string(PetModel)))
           return 
         end
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "camping", 30, nil, CoreActionLambda)
+        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "camping", 40, nil, CoreActionLambda)
         if not DidAilmentClear then
           warn(string.format("PetFarmOfficial.AilmentActions.camping: %s", ResultMessage))
         else
@@ -281,47 +281,69 @@ local AilmentActions = {
     end;
   };
 
-  ["sick"] = function(PetModel, WaitForCompletion)
-    local OuterPcallSuccess, ErrorMessage = pcall(function()
-      local CoreActionLambda = function()
-        Ad:teleport_to_ailment_location("Hospital")
-        task.wait(1)
-
-        local HealingFurnitureName = "f-14" 
-
-        API["HousingAPI/ActivateFurniture"]:InvokeServer(
-          LocalPlayer,
-          HealingFurnitureName, 
-          "UseBlock",             
-          { ["cframe"] = CFrame.new(LocalPlayer.Character.HumanoidRootPart.Position) },
-          PetModel                
-        )
-      end
-
-      if WaitForCompletion then
-        if not Ad:verify_ailment_exists(PetModel, "sick") then 
-          print(string.format("AilmentActions.sick: Ailment '%s' not present for pet '%s' before action.", "sick", Ad:get_pet_unique_id_string(PetModel)))
-          return
+  ["sick"] = {
+    ["Smart"] = function(PetModel, WaitForCompletion)
+      local OuterPcallSuccess, ErrorMessage = pcall(function()
+        local CoreActionLambda = function()
+          Ad:teleport_to_ailment_location("Hospital")
+          task.wait(1)
+          API["HousingAPI/ActivateInteriorFurniture"]:InvokeServer("f-14", "UseBlock", "Yes", LocalPlayer.Character)
         end
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "sick", 30, nil, CoreActionLambda)
-        if not DidAilmentClear then
-          warn(string.format("PetFarmOfficial.AilmentActions.sick: %s", ResultMessage))
+
+        if WaitForCompletion then
+          if not Ad:verify_ailment_exists(PetModel, "sick") then
+            print(string.format("AilmentActions.sick.Smart: Ailment '%s' not present for pet '%s' before action.", "sick", Ad:get_pet_unique_id_string(PetModel)))
+            return
+          end
+          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "sick", 30, nil, CoreActionLambda)
+          if not DidAilmentClear then
+            warn(string.format("PetFarmOfficial.AilmentActions.sick.Smart: %s", ResultMessage))
+            Ad._SickSmartFailed = true
+          else
+            print(string.format("PetFarmOfficial.AilmentActions.sick.Smart: %s", ResultMessage))
+          end
         else
-          print(string.format("PetFarmOfficial.AilmentActions.sick: %s", ResultMessage))
+          if not Ad:verify_ailment_exists(PetModel, "sick") then return end
+          local ActionSuccess, ActionError = pcall(CoreActionLambda)
+          if not ActionSuccess then
+            warn(string.format("PetFarmOfficial.AilmentActions.sick.Smart: Error during non-awaited execution: %s", tostring(ActionError)))
+          end
         end
-      else
-        if not Ad:verify_ailment_exists(PetModel, "sick") then return end
-        local ActionSuccess, ActionError = pcall(CoreActionLambda)
-        if not ActionSuccess then
-          warn(string.format("PetFarmOfficial.AilmentActions.sick: Error during non-awaited execution: %s", tostring(ActionError)))
-        end
+      end)
+      if not OuterPcallSuccess then
+        warn(string.format("Error setting up or invoking 'sick.Smart' ailment action: %s", ErrorMessage or "Unknown error"))
       end
-    end)
+    end;
+    ["Standard"] = function(PetModel, WaitForCompletion)
+      local OuterPcallSuccess, ErrorMessage = pcall(function()
+        local CoreActionLambda = function()
+          Ad:purchase_and_consume_item(PetModel, "healing_apple")
+        end
 
-    if not OuterPcallSuccess then
-      warn(string.format("Error setting up or invoking 'sick' ailment action: %s", ErrorMessage or "Unknown error"))
-    end
-  end;
+        if WaitForCompletion then
+          if not Ad:verify_ailment_exists(PetModel, "sick") then
+            print(string.format("AilmentActions.sick.Standard: Ailment '%s' not present for pet '%s' before action.", "sick", Ad:get_pet_unique_id_string(PetModel)))
+            return
+          end
+          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "sick", 30, nil, CoreActionLambda)
+          if not DidAilmentClear then
+            warn(string.format("PetFarmOfficial.AilmentActions.sick.Standard: %s", ResultMessage))
+          else
+            print(string.format("PetFarmOfficial.AilmentActions.sick.Standard: %s", ResultMessage))
+          end
+        else
+          if not Ad:verify_ailment_exists(PetModel, "sick") then return end
+          local ActionSuccess, ActionError = pcall(CoreActionLambda)
+          if not ActionSuccess then
+            warn(string.format("PetFarmOfficial.AilmentActions.sick.Standard: Error during non-awaited execution: %s", tostring(ActionError)))
+          end
+        end
+      end)
+      if not OuterPcallSuccess then
+        warn(string.format("Error setting up or invoking 'sick.Standard' ailment action: %s", ErrorMessage or "Unknown error"))
+      end
+    end;
+  };
 
   ["salon"] = function(PetModel, WaitForCompletion)
     local OuterPcallSuccess, ErrorMessage = pcall(function()
@@ -334,7 +356,7 @@ local AilmentActions = {
           print(string.format("AilmentActions.salon: Ailment '%s' not present for pet '%s' before action.", "salon", Ad:get_pet_unique_id_string(PetModel)))
           return
         end
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "salon", 30, nil, CoreActionLambda)
+        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "salon", 40, nil, CoreActionLambda)
         if not DidAilmentClear then
           warn(string.format("PetFarmOfficial.AilmentActions.salon: %s", ResultMessage))
         else
@@ -365,7 +387,7 @@ local AilmentActions = {
           print(string.format("AilmentActions.school: Ailment '%s' not present for pet '%s' before action.", "school", Ad:get_pet_unique_id_string(PetModel)))
           return
         end
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "school", 30, nil, CoreActionLambda)
+        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "school", 40, nil, CoreActionLambda)
         if not DidAilmentClear then
           warn(string.format("PetFarmOfficial.AilmentActions.school: %s", ResultMessage))
         else
@@ -396,7 +418,7 @@ local AilmentActions = {
           print(string.format("AilmentActions.pizza_party: Ailment '%s' not present for pet '%s' before action.", "pizza_party", Ad:get_pet_unique_id_string(PetModel)))
           return
         end
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "pizza_party", 30, nil, CoreActionLambda)
+        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "pizza_party", 40, nil, CoreActionLambda)
         if not DidAilmentClear then
           warn(string.format("PetFarmOfficial.AilmentActions.pizza_party: %s", ResultMessage))
         else
@@ -608,7 +630,7 @@ local AilmentActions = {
       end
 
       if WaitForCompletion then
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "play", 20, nil, CoreActionLambda)
+        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "play", 40, nil, CoreActionLambda)
         if not DidAilmentClear then
           warn(string.format("PetFarmOfficial.AilmentActions.play: %s", ResultMessage))
         else
@@ -968,13 +990,13 @@ function Ad.verify_ailment_exists(self, PetModel, AilmentName)
   if (PetSpecificAilmentsInfo and typeof(PetSpecificAilmentsInfo) == "table") then
     for _, AilmentDataEntry in PetSpecificAilmentsInfo do
       if (typeof(AilmentDataEntry) == "table" and AilmentDataEntry["kind"] == AilmentName) then
-        print(string.format("VerifyAilmentExists: Ailment '%s' FOUND for pet '%s'.", AilmentName, PetUniqueId))
+        -- print(string.format("VerifyAilmentExists: Ailment '%s' FOUND for pet '%s'.", AilmentName, PetUniqueId))
         return true
       end
     end
   end
 
-  print(string.format("VerifyAilmentExists: Ailment '%s' NOT FOUND for pet '%s'.", AilmentName, PetUniqueId))
+  -- print(string.format("VerifyAilmentExists: Ailment '%s' NOT FOUND for pet '%s'.", AilmentName, PetUniqueId))
   return false
 end
 
@@ -1568,9 +1590,9 @@ function Ad.setup_safety_platforms(self)
   local PlatformColor = Color3.fromRGB(120, 130, 140) 
   local PlatformMaterial = Enum.Material.Concrete
 
-  local function CreatePlatformIfMissing(Name, TargetCFrame)
-    if not TargetCFrame then
-      warn("SetupSafetyPlatforms: Cannot create platform '", Name, "' because TargetCFrame is nil.")
+  local function CreatePlatformIfMissing(Name, TargetPosition)
+    if not TargetPosition then
+      warn("SetupSafetyPlatforms: Cannot create platform '", Name, "' because TargetPosition is nil.")
       return
     end
 
@@ -1590,30 +1612,31 @@ function Ad.setup_safety_platforms(self)
     Platform.Material = PlatformMaterial
     Platform.TopSurface = Enum.SurfaceType.Smooth
     Platform.BottomSurface = Enum.SurfaceType.Smooth
-    Platform.CFrame = TargetCFrame * CFrame.new(0, -(PlatformSize.Y / 2) - 2, 0) 
+    -- Center the platform at TargetPosition, with the top surface at TargetPosition.Y
+    Platform.Position = Vector3.new(TargetPosition.X, TargetPosition.Y - (PlatformSize.Y / 2), TargetPosition.Z)
     Platform.Parent = SafetyPlatformsFolder
-    print(string.format("SetupSafetyPlatforms: Created platform '%s'. Target CFrame: %s, Platform CFrame: %s", Name, tostring(TargetCFrame), tostring(Platform.CFrame)))
+    print(string.format("SetupSafetyPlatforms: Created platform '%s'. Target Position: %s, Platform Position: %s", Name, tostring(TargetPosition), tostring(Platform.Position)))
   end
 
   local ParkStaticMap = workspace:FindFirstChild("StaticMap")
   if ParkStaticMap then
     local ParkTarget = ParkStaticMap:FindFirstChild("Park")
     if ParkTarget and ParkTarget:FindFirstChild("BoredAilmentTarget") and ParkTarget.BoredAilmentTarget:IsA("BasePart") then
-      CreatePlatformIfMissing("SafetyPlatform_Park", ParkTarget.BoredAilmentTarget.CFrame)
+      CreatePlatformIfMissing("SafetyPlatform_Park", ParkTarget.BoredAilmentTarget.Position)
     else
-      warn("SetupSafetyPlatforms: Could not find StaticMap.Park.BoredAilmentTarget CFrame or it's not a BasePart.")
+      warn("SetupSafetyPlatforms: Could not find StaticMap.Park.BoredAilmentTarget Position or it's not a BasePart.")
     end
     local BeachTarget = ParkStaticMap:FindFirstChild("Beach")
     if BeachTarget and BeachTarget:FindFirstChild("BeachPartyAilmentTarget") and BeachTarget.BeachPartyAilmentTarget:IsA("BasePart") then
-      CreatePlatformIfMissing("SafetyPlatform_Beach", BeachTarget.BeachPartyAilmentTarget.CFrame)
+      CreatePlatformIfMissing("SafetyPlatform_Beach", BeachTarget.BeachPartyAilmentTarget.Position)
     else
-      warn("SetupSafetyPlatforms: Could not find StaticMap.Beach.BeachPartyAilmentTarget CFrame or it's not a BasePart.")
+      warn("SetupSafetyPlatforms: Could not find StaticMap.Beach.BeachPartyAilmentTarget Position or it's not a BasePart.")
     end
     local CampsiteTarget = ParkStaticMap:FindFirstChild("Campsite")
     if CampsiteTarget and CampsiteTarget:FindFirstChild("CampsiteOrigin") and CampsiteTarget.CampsiteOrigin:IsA("BasePart") then
-      CreatePlatformIfMissing("SafetyPlatform_Campsite", CampsiteTarget.CampsiteOrigin.CFrame)
+      CreatePlatformIfMissing("SafetyPlatform_Campsite", CampsiteTarget.CampsiteOrigin.Position)
     else
-      warn("SetupSafetyPlatforms: Could not find StaticMap.Campsite.CampsiteOrigin CFrame or it's not a BasePart.")
+      warn("SetupSafetyPlatforms: Could not find StaticMap.Campsite.CampsiteOrigin Position or it's not a BasePart.")
     end
   else
     warn("SetupSafetyPlatforms: Could not find StaticMap.")
@@ -1631,8 +1654,8 @@ function Ad.setup_safety_platforms(self)
             local FloorParts = FloorsFolder:GetChildren()
             if #FloorParts > 0 and FloorParts[1]:IsA("BasePart") then
               local MainFloorPart = FloorParts[1]
-              local HomeFloorTopCFrame = MainFloorPart.CFrame * CFrame.new(0, MainFloorPart.Size.Y / 2, 0)
-              CreatePlatformIfMissing("SafetyPlatform_Home_" .. LocalPlayer["Name"], HomeFloorTopCFrame)
+              local HomeFloorTopPosition = MainFloorPart.Position + Vector3.new(0, MainFloorPart.Size.Y / 2, 0)
+              CreatePlatformIfMissing("SafetyPlatform_Home_" .. LocalPlayer["Name"], HomeFloorTopPosition)
             else
               warn("SetupSafetyPlatforms: Could not find suitable floor part for player: ", LocalPlayer["Name"])
             end
@@ -1693,32 +1716,41 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
       local ActionRequiresTargetCFrame = false
       local AilmentNameForAction = TaskData["ailment"] 
 
-      if TaskData["type"] == "location" or TaskData["type"] == "instant" or TaskData["type"] == "remaining" then
-        if AilmentNameForAction then
-          local FoundAction = AllAilmentActions[AilmentNameForAction]
-          if FoundAction then 
-            ActionToExecute = FoundAction
-            if AilmentNameForAction == "sleepy" or AilmentNameForAction == "dirty" or AilmentNameForAction == "toilet" then
-              ActionRequiresTargetCFrame = true
+      -- Special handling for 'sick' ailment
+      if AilmentNameForAction == "sick" and typeof(AllAilmentActions["sick"]) == "table" then
+        if Ad._SickSmartFailed then
+          ActionToExecute = AllAilmentActions["sick"].Standard
+        else
+          ActionToExecute = AllAilmentActions["sick"].Smart
+        end
+      else
+        if TaskData["type"] == "location" or TaskData["type"] == "instant" or TaskData["type"] == "remaining" then
+          if AilmentNameForAction then
+            local FoundAction = AllAilmentActions[AilmentNameForAction]
+            if FoundAction then 
+              ActionToExecute = FoundAction
+              if AilmentNameForAction == "sleepy" or AilmentNameForAction == "dirty" or AilmentNameForAction == "toilet" then
+                ActionRequiresTargetCFrame = true
+              end
             end
           end
-        end
-      elseif TaskData["type"] == "location_bonus" then 
-        if AilmentNameForAction then
-          local FoundAction = AllAilmentActions[AilmentNameForAction]
-          if FoundAction and type(FoundAction) == "table" then 
-            ActionToExecute = FoundAction 
-            ActionRequiresTargetCFrame = true 
-          elseif FoundAction then 
-            ActionToExecute = FoundAction
+        elseif TaskData["type"] == "location_bonus" then 
+          if AilmentNameForAction then
+            local FoundAction = AllAilmentActions[AilmentNameForAction]
+            if FoundAction and type(FoundAction) == "table" then 
+              ActionToExecute = FoundAction 
+              ActionRequiresTargetCFrame = true 
+            elseif FoundAction then 
+              ActionToExecute = FoundAction
+            end
           end
-        end
-      else 
-        AilmentNameForAction = TaskData["ailment"] or TaskData["description"] 
-        if AilmentNameForAction then
-          local FoundAction = AllAilmentActions[AilmentNameForAction]
-          if FoundAction then
-            ActionToExecute = FoundAction
+        else 
+          AilmentNameForAction = TaskData["ailment"] or TaskData["description"] 
+          if AilmentNameForAction then
+            local FoundAction = AllAilmentActions[AilmentNameForAction]
+            if FoundAction then
+              ActionToExecute = FoundAction
+            end
           end
         end
       end
