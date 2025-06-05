@@ -608,35 +608,49 @@ local AilmentActions = {
       local CoreActionLambda = function()
         local ToyUnique = Ad:get_default_throw_toy_unique()
         if not ToyUnique then return end
-        local Success, Result = pcall(function()
-          return API["PetObjectAPI/CreatePetObject"]:InvokeServer(
-            "__Enum_PetObjectCreatorType_1",
-            {
-              reaction_name = "ThrowToyReaction",
-              unique_id = ToyUnique
-            }
-          )
+        -- Throw the toy every 4 seconds until the task is complete
+        while Ad:verify_ailment_exists(PetModel, "play") do
+          local Success, Result = pcall(function()
+            API["PetObjectAPI/CreatePetObject"]:InvokeServer(
+              "__Enum_PetObjectCreatorType_1",
+              {
+                reaction_name = "ThrowToyReaction",
+                unique_id = ToyUnique
+              }
+            )
+          end)
+          if not Success then
+            warn("AilmentActions.play: Failed to throw toy:", Result)
+          end
+          for _ = 1, 40 do -- Wait up to 4 seconds, but break early if task is done
+            if not Ad:verify_ailment_exists(PetModel, "play") then break end
+            task.wait(0.1)
+          end
+        end
+        -- Unequip the toy after the task is complete
+        local UnequipSuccess, UnequipResult = pcall(function()
+          API["ToolAPI/Unequip"]:InvokeServer(ToyUnique, {use_sound_delay = false, equip_as_last = false})
         end)
-        if not Success then
-          warn("AilmentActions.play.Standard: Failed to throw toy:", Result)
+        if not UnequipSuccess then
+          warn("AilmentActions.play: Failed to unequip toy:", UnequipResult)
         end
       end
       if WaitForCompletion then
         local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "play", 40, nil, CoreActionLambda)
         if not DidAilmentClear then
-          warn(string.format("PetFarmOfficial.AilmentActions.play.Standard: %s", ResultMessage))
+          warn(string.format("PetFarmOfficial.AilmentActions.play: %s", ResultMessage))
         else
-          print(string.format("PetFarmOfficial.AilmentActions.play.Standard: %s", ResultMessage))
+          print(string.format("PetFarmOfficial.AilmentActions.play: %s", ResultMessage))
         end
       else
         local ActionSuccess, ActionError = pcall(CoreActionLambda)
         if not ActionSuccess then
-          warn(string.format("PetFarmOfficial.AilmentActions.play.Standard: Error during non-awaited execution: %s", tostring(ActionError)))
+          warn(string.format("PetFarmOfficial.AilmentActions.play: Error during non-awaited execution: %s", tostring(ActionError)))
         end
       end
     end)
     if not OuterPcallSuccess then
-      warn(string.format("Error setting up or invoking 'play.Standard' ailment action: %s", ErrorMessage or "Unknown error"))
+      warn(string.format("Error setting up or invoking 'play' ailment action: %s", ErrorMessage or "Unknown error"))
     end
   end;
 
@@ -790,6 +804,13 @@ local AilmentActions = {
         while Ad:verify_ailment_exists(PetModel, "ride") do
           Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
           task.wait(0.2)
+        end
+        -- Unequip the stroller after the task is complete
+        local UnequipSuccess, UnequipResult = pcall(function()
+          API["ToolAPI/Unequip"]:InvokeServer(StrollerUnique, {use_sound_delay = false, equip_as_last = false})
+        end)
+        if not UnequipSuccess then
+          warn("AilmentActions.ride: Failed to unequip stroller:", UnequipResult)
         end
       end
       if WaitForCompletion then
