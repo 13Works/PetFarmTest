@@ -71,6 +71,12 @@ do -- Initialize API
     ["adopt"] = {
       ["use_stroller"] = function(Player, PetModel, TouchToSit)
         API["AdoptAPI/UseStroller"]:InvokeServer(Player, PetModel, TouchToSit)
+      end,
+      ["hold_baby"] = function(PetModel)
+        API["AdoptAPI/HoldBaby"]:FireServer(PetModel)
+      end,
+      ["eject_baby"] = function(PetModel)
+        API["AdoptAPI/EjectBaby"]:FireServer(PetModel)
       end
     };
     ["location"] = {
@@ -87,7 +93,7 @@ do -- Initialize API
       ["buy_item"] = function(Category, ItemName, Options)
         return API["ShopAPI/BuyItem"]:InvokeServer(Category, ItemName, Options)
       end
-    }
+    };
   }
 end
 
