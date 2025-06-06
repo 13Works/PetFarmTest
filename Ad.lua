@@ -1218,4 +1218,34 @@ function Ad:go_home()
   return true
 end
 
+--[[
+  Retrieves smart furniture for a given ailment, optionally purchasing if not found and/or falling back to any matching furniture.
+  @param AilmentName string -- The name of the ailment (e.g., "toilet")
+  @param PurchaseIfNotFound boolean -- If true, will attempt to purchase smart furniture if not found
+  @param FallbackToAnyFurniture boolean -- If true, will fall back to any matching furniture if smart is not found
+  @return table? -- The furniture object if found, or nil
+
+  Example:
+  ```lua
+  local FurnitureItem = Ad:retrieve_smart_furniture("toilet", true, true)
+  ```
+]]
+function Ad:retrieve_smart_furniture(AilmentName, PurchaseIfNotFound, FallbackToAnyFurniture)
+  if not AilmentName or type(AilmentName) ~= "string" then
+    warn("retrieve_smart_furniture: Invalid AilmentName argument.")
+    return nil
+  end
+
+  local FurnitureItem = self.SmartFurnitureMap[AilmentName]
+  if not FurnitureItem and PurchaseIfNotFound then
+    self:initialize_smart_furniture()
+    FurnitureItem = self.SmartFurnitureMap[AilmentName]
+  end
+  if not FurnitureItem and FallbackToAnyFurniture then
+    warn(string.format("retrieve_smart_furniture: SmartFurnitureMap does NOT have '%s' entry. Trying find_first_ailment_furniture.", AilmentName))
+    FurnitureItem = self:find_first_ailment_furniture(AilmentName)
+  end
+  return FurnitureItem
+end
+
 return Ad
