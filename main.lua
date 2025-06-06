@@ -17,7 +17,7 @@ local AILMENTS = {
   ["PIZZA_PARTY"] = "pizza_party", ["THIRSTY"] = "thirsty", ["PLAY"] = "play",
   ["TOILET"] = "toilet", ["RIDE"] = "ride", ["WALK"] = "walk"
 }
-local TIMEOUTS = {["DEFAULT"] = 50, ["CONSUMABLE"] = 25, ["INTERACTION"] = 30, ["LOCATION"] = 50}
+local TIMEOUTS = {["DEFAULT"] = 50, ["CONSUMABLE"] = 25, ["INTERACTION"] = 30, ["LOCATION"] = 50, ["MOVEMENT"] = 40}
 local ITEMS = {["FOOD"] = "teachers_apple", ["DRINK"] = "water", ["HEALING"] = "healing_apple"}
 local FURNITURE_IDS = {["DOCTOR_INTERACTION"] = "f-14"}
 local GAME_LOCATIONS = {
@@ -282,11 +282,11 @@ local AilmentActions = {
   [AILMENTS.PLAY] = NewAilmentAction {
     ["AilmentName"] = AILMENTS.PLAY;
     ["DefaultTimeout"] = TIMEOUTS.INTERACTION;
-    ["CoreAction"] = function(PetModel)
+    ["CoreAction"] = function(PetModel, CancelToken)
       local ToyUnique = Ad:get_default_throw_toy_unique()
       if not ToyUnique then return end
-      -- Throw the toy every 4 seconds until the task is complete
-      while Ad:verify_ailment_exists(PetModel, "play") do
+      -- Throw the toy every 4 seconds until the task is complete or cancelled
+      while Ad:verify_ailment_exists(PetModel, "play") and not (CancelToken and CancelToken.ShouldStop) do
         local Success, Result = pcall(function()
           Ad.__api.pet_object.create_pet_object(
             MISC_STRINGS.PET_OBJECT_CREATOR_TYPE, 
@@ -300,7 +300,7 @@ local AilmentActions = {
           warn("AilmentActions.play: Failed to throw toy:", Result)
         end
         for _ = 1, 40 do -- Wait up to 4 seconds, but break early if task is done
-          if not Ad:verify_ailment_exists(PetModel, "play") then break end
+          if not Ad:verify_ailment_exists(PetModel, "play") or (CancelToken and CancelToken.ShouldStop) then break end
           task.wait(0.1)
         end
       end
@@ -315,9 +315,9 @@ local AilmentActions = {
   };
   [AILMENTS.RIDE] = NewAilmentAction {
     ["AilmentName"] = AILMENTS.RIDE;
-    ["DefaultTimeout"] = TIMEOUTS.INTERACTION;
+    ["DefaultTimeout"] = TIMEOUTS.MOVEMENT;
     ["PreCoreAction"] = Ad.go_home;
-    ["CoreAction"] = function(PetModel)
+    ["CoreAction"] = function(PetModel, CancelToken)
       local StrollerUnique = Ad:get_default_stroller_unique()
       if not StrollerUnique then return end
       local EquipSuccess, EquipResult = pcall(function()
@@ -367,13 +367,13 @@ local AilmentActions = {
         warn("AilmentActions.ride: Failed to use stroller:", UseResult)
         return
       end
-      -- Set humanoid state to jumping until the ride task is over
+      -- Set humanoid state to jumping until the ride task is over or cancelled
       local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
       if not Humanoid then
         warn("AilmentActions.ride: Humanoid not found in character.")
         return
       end
-      while Ad:verify_ailment_exists(PetModel, "ride") do
+      while Ad:verify_ailment_exists(PetModel, "ride") and not (CancelToken and CancelToken.ShouldStop) do
         Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
         task.wait(0.5)
       end
@@ -388,9 +388,9 @@ local AilmentActions = {
   };
   [AILMENTS.WALK] = NewAilmentAction {
     ["AilmentName"] = AILMENTS.WALK;
-    ["DefaultTimeout"] = TIMEOUTS.INTERACTION;
+    ["DefaultTimeout"] = TIMEOUTS.MOVEMENT;
     ["PreCoreAction"] = Ad.go_home;
-    ["CoreAction"] = function(PetModel)
+    ["CoreAction"] = function(PetModel, CancelToken)
       -- Hold the pet
       local HoldSuccess, HoldError = pcall(function()
         Ad.__api.adopt.hold_baby(PetModel)
@@ -399,14 +399,14 @@ local AilmentActions = {
         warn("AilmentActions.walk: Failed to hold pet:", HoldError)
         return
       end
-      -- Wait for the walk ailment to clear
+      -- Wait for the walk ailment to clear or be cancelled
       local Character = LocalPlayer.Character
       local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
       if not Humanoid then
         warn("AilmentActions.walk: Humanoid not found in character.")
         return
       end
-      while Ad:verify_ailment_exists(PetModel, "walk") do
+      while Ad:verify_ailment_exists(PetModel, "walk") and not (CancelToken and CancelToken.ShouldStop) do
         Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
         task.wait(0.5)
       end
@@ -464,16 +464,26 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
       local ActionTable = AllAilmentActions[AilmentName]
       local PotentialAction = typeof(ActionTable) == "table" and ActionTable.Standard or ActionTable
       if not PotentialAction or typeof(PotentialAction) ~= "function" then
-        warn(string.format("    No executable action function found for ailment '%s' (TaskType: %s). PotentialAction is: %s", AilmentName, TaskData.Type, tostring(PotentialAction)))
+        warn(string.format("    No executable action function found for ailment '%s' (TaskType: %s). PotentialAction is: %s", AilmentName, TaskData.Type, tostring(PotentialAction) or "N/A"))
         Completed[AilmentName] = true
         return
       end
 
-      local Success, ErrorMessage = pcall(PotentialAction, PetModel, true)
+      -- STYLE_GUIDE.md > Error Handling & Control Flow: Use CancelToken to stop movement loops
+      local CancelToken = nil
+      if table.find({AILMENTS.RIDE, AILMENTS.WALK, AILMENTS.PLAY}, AilmentName) then
+        CancelToken = {ShouldStop = false}
+      end
+
+      local Success, ErrorMessage = pcall(PotentialAction, PetModel, CancelToken)
       if not Success then
         warn(string.format("    Error executing action '%s': %s", AilmentName, tostring(ErrorMessage)))
       else
         print(string.format("    Action completed for: %s", AilmentName))
+      end
+
+      if CancelToken then
+        CancelToken.ShouldStop = true
       end
 
       Completed[AilmentName] = true
