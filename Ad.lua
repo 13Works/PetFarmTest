@@ -1,11 +1,10 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
 
-local API = ReplicatedStorage:WaitForChild("API")
 local Fsys = ReplicatedStorage:FindFirstChild("Fsys")
-local SharedConstants = require(ReplicatedStorage["ClientDB"]["SharedConstants"])
 local ClientData = require(ReplicatedStorage["ClientModules"]["Core"]["ClientData"])
+local SharedConstants = require(ReplicatedStorage["ClientDB"]["SharedConstants"])
 
 local EquippedPetsModule = (function()
   if (not Fsys) then
@@ -26,43 +25,68 @@ local EquippedPetsModule = (function()
   return Module
 end)()
 
-loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/RenderAPI.lua"), true))()
-
-local LocalPlayer = Players.LocalPlayer
-
 local Ad = {["SmartFurnitureMap"] = {}}
 
-Ad.__api = {
-  ["housing"] = {
-    ["activate_interior_furniture"] = function(InteriorUniqueId, FurnitureUniqueId, UseBlock, PetModel)
-      API["HousingAPI/ActivateInteriorFurniture"]:InvokeServer(InteriorUniqueId, FurnitureUniqueId, UseBlock, PetModel)
-    end,
-    ["push_furniture_changes"] = function(FurnitureChanges)
-      API["HousingAPI/PushFurnitureChanges"]:FireServer(FurnitureChanges)
-    end
-  };
-  ["pet_object"] = {
-    ["create_pet_object"] = function(CreatorType, ObjectData)
-      API["PetObjectAPI/CreatePetObject"]:InvokeServer(CreatorType, ObjectData)
-    end
-  };
-  ["tool"] = {
-    ["unequip"] = function(ToolUniqueId, Options)
-      API["ToolAPI/Unequip"]:InvokeServer(ToolUniqueId, Options)
-    end,
-    ["equip"] = function(ToolUniqueId, Options)
-      API["ToolAPI/Equip"]:InvokeServer(ToolUniqueId, Options)
-    end,
-    ["unequip_all"] = function()
-      API["ToolAPI/UnequipAll"]:InvokeServer()
-    end
-  };
-  ["adopt"] = {
-    ["use_stroller"] = function(Player, PetModel, TouchToSit)
-      API["AdoptAPI/UseStroller"]:InvokeServer(Player, PetModel, TouchToSit)
-    end
+do -- Initialize API
+  local API = ReplicatedStorage:WaitForChild("API")
+  loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/RenderAPI.lua"), true))()
+
+  Ad.__api = {
+    ["housing"] = {
+      ["activate_interior_furniture"] = function(InteriorUniqueId, FurnitureUniqueId, UseBlock, PetModel)
+        API["HousingAPI/ActivateInteriorFurniture"]:InvokeServer(InteriorUniqueId, FurnitureUniqueId, UseBlock, PetModel)
+      end,
+      ["push_furniture_changes"] = function(FurnitureChanges)
+        API["HousingAPI/PushFurnitureChanges"]:FireServer(FurnitureChanges)
+      end,
+      ["subscribe_to_house"] = function(Player)
+        API["HousingAPI/SubscribeToHouse"]:FireServer(Player)
+      end,
+      ["buy_furnitures"] = function(ItemsToBuy)
+        API["HousingAPI/BuyFurnitures"]:InvokeServer(ItemsToBuy)
+      end
+    };
+    ["pet_object"] = {
+      ["create_pet_object"] = function(CreatorType, ObjectData)
+        API["PetObjectAPI/CreatePetObject"]:InvokeServer(CreatorType, ObjectData)
+      end,
+      ["consume_food_object"] = function(FoodObject, PetUniqueId)
+        API["PetObjectAPI/ConsumeFoodObject"]:FireServer(FoodObject, PetUniqueId)
+      end
+    };
+    ["tool"] = {
+      ["unequip"] = function(ToolUniqueId, Options)
+        API["ToolAPI/Unequip"]:InvokeServer(ToolUniqueId, Options)
+      end,
+      ["equip"] = function(ToolUniqueId, Options)
+        API["ToolAPI/Equip"]:InvokeServer(ToolUniqueId, Options)
+      end,
+      ["unequip_all"] = function()
+        API["ToolAPI/UnequipAll"]:InvokeServer()
+      end
+    };
+    ["adopt"] = {
+      ["use_stroller"] = function(Player, PetModel, TouchToSit)
+        API["AdoptAPI/UseStroller"]:InvokeServer(Player, PetModel, TouchToSit)
+      end
+    };
+    ["location"] = {
+      ["set_location"] = function(LocationName, Player)
+        API["LocationAPI/SetLocation"]:FireServer(LocationName, Player)
+      end
+    };
+    ["pet"] = {
+      ["exit_furniture_use_states"] = function()
+        API["PetAPI/ExitFurnitureUseStates"]:FireServer()
+      end
+    };
+    ["shop"] = {
+      ["buy_item"] = function(Category, ItemName, Options)
+        return API["ShopAPI/BuyItem"]:InvokeServer(Category, ItemName, Options)
+      end
+    }
   }
-}
+end
 
 local AILMENT_TO_FURNITURE_MODEL_MAP = {
   ["thirsty"] = { "AilmentsRefresh2024CheapWaterBowl", "ailments_refresh_2024_cheap_water_bowl" };
@@ -243,15 +267,6 @@ function Ad:get_pet_unique_id_string(PetModel)
     else
       warn("GetPetUniqueIdString: EquippedPetsModule.get_my_equipped_char_wrappers() returned nil or an empty list. Cannot check module for ID.")
     end
-  end
-
-  if (PetModel["unique"] and typeof(PetModel["unique"]) == "string") then
-    return PetModel["unique"]
-  end
-
-  if (PetModel["Name"] and typeof(PetModel["Name"]) == "string") then
-    warn(string.format("GetPetUniqueIdString: Using PetModel.Name ('%s') as fallback for unique ID. This may not be the correct format for API calls.", PetModel["Name"]))
-    return PetModel["Name"]
   end
 
   local PetIdentifierDescription = "an unknown PetModel instance"
@@ -515,7 +530,7 @@ function Ad:initialize_smart_furniture()
   end
   if (#ItemsToBuy > 0) then
     local Success, ErrorMessage = pcall(function()
-      API["HousingAPI/BuyFurnitures"]:InvokeServer(ItemsToBuy)
+      Ad.__api.housing.buy_furnitures(ItemsToBuy)
     end)
     if (not Success) then
       warn(string.format("InitializeSmartFurniture: Error purchasing furniture: %s", tostring(ErrorMessage)))
@@ -525,7 +540,7 @@ function Ad:initialize_smart_furniture()
 
     task.wait()
 
-    API["HousingAPI/PushFurnitureChanges"]:FireServer({})
+    Ad.__api.housing.push_furniture_changes({})
 
     task.wait()
 
@@ -587,11 +602,11 @@ function Ad:teleport_to_ailment_location(Location)
 
   local Success, ErrorMessage = pcall(function()
     if (MainLocationMap[Location]) then
-      API["LocationAPI/SetLocation"]:FireServer("MainMap", nil, "Default")
+      Ad.__api.location.set_location("MainMap", nil, "Default")
       task.wait()
       LocalPlayer["Character"]["HumanoidRootPart"]["CFrame"] = MainLocationMap[Location] * CFrame.new(0, 5, 0)
     else
-      API["LocationAPI/SetLocation"]:FireServer(Location)
+      Ad.__api.location.set_location(Location, nil, "Default")
     end
   end)
 
@@ -670,13 +685,7 @@ function Ad:place_and_use_sitable_at_cframe(SitableFurnitureObject, TargetCFrame
     SeatToUse = SitableFurnitureObject["vacant_seat"]["Name"]
   end
 
-  API["HousingAPI/ActivateFurniture"]:InvokeServer(
-    LocalPlayer,
-    SitableFurnitureObject["name"],
-    SeatToUse,
-    { ["cframe"] = TargetCFrame },
-    PetModel
-  )
+  Ad.__api.housing.activate_furniture(LocalPlayer, SitableFurnitureObject["name"], SeatToUse, {["cframe"] = TargetCFrame}, PetModel)
 end
 
 --[[
@@ -744,8 +753,7 @@ end
   ```
 ]]
 function Ad:get_player_data()
-  local ClientDataModule = require(ReplicatedStorage["ClientModules"]["Core"]["ClientData"])
-  local PlayerData = ClientDataModule.get_data()[LocalPlayer["Name"]]
+  local PlayerData = ClientData.get_data()[LocalPlayer["Name"]]
   if not PlayerData then
     warn("Ad:get_player_data: Failed to retrieve PlayerData")
   end
@@ -779,7 +787,7 @@ function Ad:purchase_and_consume_item(PetModel, ItemName)
   local Category = "food"
 
   local BuySuccess, BuyResult = pcall(function()
-    return API["ShopAPI/BuyItem"]:InvokeServer(Category, ItemName, {})
+    return Ad.__api.shop.buy_item(Category, ItemName, {})
   end)
   if (not BuySuccess) then
     warn("purchase_and_consume_item: Failed to purchase item:", BuyResult)
@@ -812,7 +820,7 @@ function Ad:purchase_and_consume_item(PetModel, ItemName)
   end
 
   local CreateSuccess, CreateResult = pcall(function()
-    return API["PetObjectAPI/CreatePetObject"]:InvokeServer(
+    return Ad.__api.pet_object.create_pet_object(
       "__Enum_PetObjectCreatorType_2",
       {
         ["additional_consume_uniques"] = {};
@@ -827,7 +835,7 @@ function Ad:purchase_and_consume_item(PetModel, ItemName)
   end
 
   local ConsumeSuccess, ConsumeResult = pcall(function()
-    API["PetAPI/ConsumeFoodObject"]:FireServer(Instance.new("Model", nil), PetUniqueId)
+    Ad.__api.pet_object.consume_food_object(Instance.new("Model", nil), PetUniqueId)
   end)
   if (not ConsumeSuccess) then
     warn("purchase_and_consume_item: Failed to fire consume event:", ConsumeResult)
@@ -1155,6 +1163,20 @@ function Ad:setup_safety_platforms()
   local MainFloorPart = FloorParts[1]
   local HomeFloorTopPosition = MainFloorPart.Position + Vector3.new(0, MainFloorPart.Size.Y / 2, 0)
   CreatePlatformIfMissing("SafetyPlatform_Home_" .. LocalPlayer.Name, HomeFloorTopPosition)
+end
+
+--[[
+  Teleports the local player to their home by subscribing to their house and setting their location.
+  @return boolean -- true if the process was initiated, false if failed
+]]
+function Ad:go_home()
+  print("Ad:go_home() Attempting to go home")
+  Ad.__api.pet.exit_furniture_use_states()
+  Ad.__api.housing.subscribe_to_house(LocalPlayer)
+  Ad.__api.location.set_location("housing", LocalPlayer)
+  Ad.__api.housing.push_furniture_changes({})
+  print("Ad:go_home() Successfully went home")
+  return true
 end
 
 return Ad
