@@ -1,59 +1,14 @@
 --/PetFarmOfficial.luau
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 
-local Ad = {}
-
-local API = ReplicatedStorage:WaitForChild("API")
-local Fsys = ReplicatedStorage:FindFirstChild("Fsys")
-local SharedConstants = require(ReplicatedStorage["ClientDB"]["SharedConstants"])
-local ClientData = require(ReplicatedStorage["ClientModules"]["Core"]["ClientData"])
-
--- Dehash the API
-for RemoteName, HashedRemote in getupvalue(require(ReplicatedStorage.ClientModules.Core.RouterClient.RouterClient).init, 7) do
-  if typeof(HashedRemote) ~= "Instance" then return end
-  if HashedRemote.Parent ~= API then return end
-  if not (HashedRemote:IsA("RemoteEvent") or HashedRemote:IsA("RemoteFunction")) then return end
-  HashedRemote.Name = RemoteName
-end
-
-local TaskPlanner = loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/TaskPlanner.lua"), true))()
-local PlanFormatter = loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/PlanFormatter.lua"), true))()
-
+local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
-local EquippedPetsModule = nil
-if (Fsys) then
-  local LoadSuccess, Module = pcall(function()
-    return require(Fsys).load("EquippedPets")
-  end)
-  if (LoadSuccess and Module) then
-    EquippedPetsModule = Module
-    print("EquippedPets module loaded successfully.")
-  else
-    warn("Failed to load EquippedPets module:", Module)
-  end
-else
-  warn("Fsys module loader not found in ReplicatedStorage. EquippedPets module cannot be loaded.")
-end
-
-local SmartFurnitureMap = {}
-
-local AILMENT_TO_FURNITURE_MODEL_MAP = {
-  ["thirsty"] = { "AilmentsRefresh2024CheapWaterBowl", "ailments_refresh_2024_cheap_water_bowl" };
-  ["hungry"] = { "AilmentsRefresh2024CheapWaterBowl", "ailments_refresh_2024_cheap_water_bowl" };
-  ["toilet"] = { "AilmentsRefresh2024LitterBox", "ailments_refresh_2024_litter_box" };
-  ["dirty"] = { "ModernShower", "modernshower" };
-  ["sleepy"] = { "BasicCrib", "basiccrib" };
-}
-
-local AILMENT_KEYWORDS_MAP = {
-  ["dirty"] = {"shower", "bath", "tub"};
-  ["sleepy"] = {"bed", "crib", "cot", "hammock"};
-  ["toilet"] = {"toilet", "litter box", "potty"};
-}
+local Ad = loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/Ad.lua"), true))()
+local TaskPlanner = loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/TaskPlanner.lua"), true))()
+local PlanFormatter = loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/PlanFormatter.lua"), true))()
 
 local AilmentActions = {
   ["bored"] = function(PetModel, WaitForCompletion)
@@ -170,14 +125,14 @@ local AilmentActions = {
       if not OuterPcallSuccess then
         warn(string.format("Error setting up or invoking 'hungry.Standard' ailment action: %s", ErrorMessage or "Unknown error"))
       end
-    end;
+    end; 
     ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          if next(SmartFurnitureMap) == nil then
+          if next(Ad.SmartFurnitureMap) == nil then
             Ad:initialize_smart_furniture()
           end
-          local Bowl = SmartFurnitureMap["hungry"]
+          local Bowl = Ad.SmartFurnitureMap["hungry"]
           if Bowl then
             Ad:place_and_use_sitable_at_cframe(Bowl, TargetCFrame, PetModel)
           else
@@ -244,10 +199,10 @@ local AilmentActions = {
     ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          if next(SmartFurnitureMap) == nil then
+          if next(Ad.SmartFurnitureMap) == nil then
             Ad:initialize_smart_furniture()
           end
-          local Bowl = SmartFurnitureMap["thirsty"]
+          local Bowl = Ad.SmartFurnitureMap["thirsty"]
           if Bowl then
             Ad:place_and_use_sitable_at_cframe(Bowl, TargetCFrame, PetModel)
           else
@@ -286,7 +241,7 @@ local AilmentActions = {
         local CoreActionLambda = function()
           Ad:teleport_to_ailment_location("Hospital")
           task.wait(1)
-          API["HousingAPI/ActivateInteriorFurniture"]:InvokeServer("f-14", "UseBlock", "Yes", LocalPlayer.Character)
+          Ad.__api.housing.activate_interior_furniture("f-14", "UseBlock", "Yes", LocalPlayer.Character)
         end
 
         if WaitForCompletion then
@@ -441,7 +396,7 @@ local AilmentActions = {
     ["Standard"] = function(PetModel, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          local FurnitureItem = SmartFurnitureMap["sleepy"]
+          local FurnitureItem = Ad.SmartFurnitureMap["sleepy"]
           if not FurnitureItem then
             warn("PetFarmOfficial.AilmentActions.sleepy.Standard: SmartFurnitureMap does NOT have 'sleepy' entry. Trying FindFirstAilmentFurniture.")
             FurnitureItem = Ad:find_first_ailment_furniture("sleepy")
@@ -481,7 +436,7 @@ local AilmentActions = {
     ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          local FurnitureItem = SmartFurnitureMap["sleepy"]
+          local FurnitureItem = Ad.SmartFurnitureMap["sleepy"]
           if not FurnitureItem then
             warn("PetFarmOfficial.AilmentActions.sleepy.Smart: SmartFurnitureMap does NOT have 'sleepy' entry. Trying FindFirstAilmentFurniture.")
             FurnitureItem = Ad:find_first_ailment_furniture("sleepy")
@@ -489,7 +444,12 @@ local AilmentActions = {
 
           if FurnitureItem then
             warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
+            
+            if Ad:STUBBED_is_furniture_owned(FurnitureItem.name) then
+              Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
+            else
+              Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
+            end
           else
             warn("PetFarmOfficial.AilmentActions.sleepy.Smart: No suitable smart or generic owned crib/bed found.")
           end
@@ -524,7 +484,7 @@ local AilmentActions = {
     ["Standard"] = function(PetModel, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          local FurnitureItem = SmartFurnitureMap["dirty"]
+          local FurnitureItem = Ad.SmartFurnitureMap["dirty"]
           if not FurnitureItem then
             warn("PetFarmOfficial.AilmentActions.dirty.Standard: SmartFurnitureMap does NOT have 'dirty' entry. Trying FindFirstAilmentFurniture.")
             FurnitureItem = Ad:find_first_ailment_furniture("dirty")
@@ -564,7 +524,7 @@ local AilmentActions = {
     ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          local FurnitureItem = SmartFurnitureMap["dirty"]
+          local FurnitureItem = Ad.SmartFurnitureMap["dirty"]
           if not FurnitureItem then
             warn("PetFarmOfficial.AilmentActions.dirty.Smart: SmartFurnitureMap does NOT have 'dirty' entry. Trying FindFirstAilmentFurniture.")
             FurnitureItem = Ad:find_first_ailment_furniture("dirty")
@@ -572,7 +532,12 @@ local AilmentActions = {
 
           if FurnitureItem then
             warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
+            
+            if Ad:STUBBED_is_furniture_owned(FurnitureItem.name) then
+              Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
+            else
+              Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
+            end
           else
             warn("PetFarmOfficial.AilmentActions.dirty.Smart: No suitable smart or generic owned shower/bath found.")
           end
@@ -611,11 +576,11 @@ local AilmentActions = {
         -- Throw the toy every 4 seconds until the task is complete
         while Ad:verify_ailment_exists(PetModel, "play") do
           local Success, Result = pcall(function()
-            API["PetObjectAPI/CreatePetObject"]:InvokeServer(
-              "__Enum_PetObjectCreatorType_1",
+            Ad.__api.pet_object.create_pet_object(
+              "__Enum_PetObjectCreatorType_1", 
               {
-                reaction_name = "ThrowToyReaction",
-                unique_id = ToyUnique
+                ["reaction_name"] = "ThrowToyReaction", 
+                ["unique_id"] = ToyUnique
               }
             )
           end)
@@ -629,7 +594,7 @@ local AilmentActions = {
         end
         -- Unequip the toy after the task is complete
         local UnequipSuccess, UnequipResult = pcall(function()
-          API["ToolAPI/Unequip"]:InvokeServer(ToyUnique, {use_sound_delay = false, equip_as_last = false})
+          Ad.__api.tool.unequip(ToyUnique, {["use_sound_delay"] = false, ["equip_as_last"] = false})
         end)
         if not UnequipSuccess then
           warn("AilmentActions.play: Failed to unequip toy:", UnequipResult)
@@ -658,7 +623,7 @@ local AilmentActions = {
     ["Standard"] = function(PetModel, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          local FurnitureItem = SmartFurnitureMap["toilet"]
+          local FurnitureItem = Ad.SmartFurnitureMap["toilet"]
           if not FurnitureItem then
             warn("PetFarmOfficial.AilmentActions.toilet.Standard: SmartFurnitureMap does NOT have 'toilet' entry. Trying FindFirstAilmentFurniture.")
             FurnitureItem = Ad:find_first_ailment_furniture("toilet")
@@ -681,7 +646,7 @@ local AilmentActions = {
           end
         else
           local CoreActionLambda = function()
-            local FurnitureItem = SmartFurnitureMap["toilet"]
+            local FurnitureItem = Ad.SmartFurnitureMap["toilet"]
             if not FurnitureItem then
               warn("PetFarmOfficial.AilmentActions.toilet.Standard: SmartFurnitureMap does NOT have 'toilet' entry. Trying FindFirstAilmentFurniture.")
               FurnitureItem = Ad:find_first_ailment_furniture("toilet")
@@ -689,7 +654,16 @@ local AilmentActions = {
 
             if FurnitureItem then
               warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-              Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
+              if Ad:STUBBED_is_furniture_owned(FurnitureItem.name) then
+                local TargetCFrame = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.CFrame
+                if TargetCFrame then
+                  Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
+                else
+                  warn("No valid CFrame for player.")
+                end
+              else
+                Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
+              end
             else
               warn("PetFarmOfficial.AilmentActions.toilet.Standard: No suitable smart or generic owned toilet/litter box found.")
             end
@@ -704,7 +678,7 @@ local AilmentActions = {
     ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          local FurnitureItem = SmartFurnitureMap["toilet"]
+          local FurnitureItem = Ad.SmartFurnitureMap["toilet"]
           if not FurnitureItem then
             warn("PetFarmOfficial.AilmentActions.toilet.Smart: SmartFurnitureMap does NOT have 'toilet' entry. Trying FindFirstAilmentFurniture.")
             FurnitureItem = Ad:find_first_ailment_furniture("toilet")
@@ -712,7 +686,12 @@ local AilmentActions = {
 
           if FurnitureItem then
             warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
+            
+            if Ad:STUBBED_is_furniture_owned(FurnitureItem.name) then
+              Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
+            else
+              Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
+            end
           else
             warn("PetFarmOfficial.AilmentActions.toilet.Smart: No suitable smart or generic owned toilet/litter box found.")
           end
@@ -749,7 +728,7 @@ local AilmentActions = {
         local StrollerUnique = Ad:get_default_stroller_unique()
         if not StrollerUnique then return end
         local EquipSuccess, EquipResult = pcall(function()
-          API["ToolAPI/Equip"]:InvokeServer(StrollerUnique)
+          Ad.__api.tool.equip(StrollerUnique)
         end)
         if not EquipSuccess then
           warn("AilmentActions.ride: Failed to equip stroller:", EquipResult)
@@ -789,7 +768,7 @@ local AilmentActions = {
           return
         end
         local UseSuccess, UseResult = pcall(function()
-          API["AdoptAPI/UseStroller"]:InvokeServer(LocalPlayer, PetModel, TouchToSit)
+          Ad.__api.adopt.use_stroller(LocalPlayer, PetModel, TouchToSit)
         end)
         if not UseSuccess then
           warn("AilmentActions.ride: Failed to use stroller:", UseResult)
@@ -807,7 +786,7 @@ local AilmentActions = {
         end
         -- Unequip the stroller after the task is complete
         local UnequipSuccess, UnequipResult = pcall(function()
-          API["ToolAPI/Unequip"]:InvokeServer(StrollerUnique, {use_sound_delay = false, equip_as_last = false})
+          Ad.__api.tool.unequip(StrollerUnique, {["use_sound_delay"] = false, ["equip_as_last"] = false})
         end)
         if not UnequipSuccess then
           warn("AilmentActions.ride: Failed to unequip stroller:", UnequipResult)
@@ -833,958 +812,7 @@ local AilmentActions = {
   end;
 }
 
---[[
-  @param self table -- The table that contains the function
-  @param PetModel table -- The pet model
-  @return table -- The first sitable furniture
-]]
-function Ad:STUBBED_find_first_sitable(PetModel)
-  return nil
-end
 
---[[
-  Returns the unique ID of the default squeaky bone toy ('squeaky_bone_default') from the player's toy inventory.
-  @param self table -- The table that contains the function
-  @return string? -- The unique ID if found, or nil if not found
-
-  Example:
-  ```lua
-  local UniqueId = Ad:get_default_throw_toy_unique()
-  ```
-]]
-function Ad:get_default_throw_toy_unique()
-  local PlayerData = self:get_player_data()
-  if not PlayerData then return end
-
-  local Toys = PlayerData["inventory"].toys
-  if not Toys then
-    warn("get_default_throw_toy_unique: Could not access player toy inventory.")
-    return nil
-  end
-
-  for UniqueId, Info in Toys do
-    if (Info and string.lower(Info["kind"] or "") == "squeaky_bone_default") then
-      return UniqueId
-    end
-  end
-  warn("get_default_throw_toy_unique: Could not find 'squeaky_bone_default' in toy inventory.")
-  return nil
-end
-
---[[
-  Returns the unique ID of the default stroller ('stroller-default') from the player's inventory.
-  @return string? -- The unique ID if found, or nil if not found
-
-  Example:
-  ```lua
-  local UniqueId = Ad:get_default_stroller_unique()
-  ```
-]]
-function Ad:get_default_stroller_unique()
-  local PlayerData = self:get_player_data()
-  if not PlayerData then return end
-  local Strollers = PlayerData["inventory"] and PlayerData["inventory"].strollers
-  if not Strollers then
-    warn("get_default_stroller_unique: Could not access player stroller inventory.")
-    return nil
-  end
-  for UniqueId, Info in Strollers do
-    if (Info and string.lower(Info["kind"] or "") == "stroller-default") then
-      return UniqueId
-    end
-  end
-  warn("get_default_stroller_unique: Could not find 'stroller-default' in stroller inventory.")
-  return nil
-end
-
---[[
-  @param self table -- The table that contains the function
-  @param PetModel table -- The pet model
-  @return string -- The unique ID of the pet
-]]
-function Ad:get_pet_unique_id_string(PetModel)
-  if (not PetModel) then
-    warn("GetPetUniqueIdString: Called with a nil PetModel.")
-    return "stub_pet_unique_id_error"
-  end
-
-  if (EquippedPetsModule) then
-    local EquippedWrappers = EquippedPetsModule.get_my_equipped_char_wrappers()
-    if (EquippedWrappers) then
-      for _, Wrapper in EquippedWrappers do
-        if (Wrapper["char"] == PetModel) then
-          if (Wrapper["pet_unique"] and typeof(Wrapper["pet_unique"]) == "string") then
-            return Wrapper["pet_unique"]
-          else
-            warn(string.format("GetPetUniqueIdString: PetModel '%s' found in EquippedPetsModule, but its 'pet_unique' property is missing or not a string. Trying other methods.", PetModel["Name"] or "Unnamed"))
-          end
-        end
-      end
-    else
-      warn("GetPetUniqueIdString: EquippedPetsModule.get_my_equipped_char_wrappers() returned nil or an empty list. Cannot check module for ID.")
-    end
-  end
-
-  if (PetModel["unique"] and typeof(PetModel["unique"]) == "string") then
-    return PetModel["unique"]
-  end
-
-  if (PetModel["Name"] and typeof(PetModel["Name"]) == "string") then
-    warn(string.format("GetPetUniqueIdString: Using PetModel.Name ('%s') as fallback for unique ID. This may not be the correct format for API calls.", PetModel["Name"]))
-    return PetModel["Name"]
-  end
-
-  local PetIdentifierDescription = "an unknown PetModel instance"
-  if (PetModel["Name"] and typeof(PetModel["Name"]) == "string") then
-    PetIdentifierDescription = string.format("PetModel named '%s'", PetModel["Name"])
-  elseif (typeof(PetModel) == "Instance") then
-    PetIdentifierDescription = string.format("PetModel instance '%s'", PetModel:GetFullName())
-  elseif (PetModel) then
-    PetIdentifierDescription = string.format("PetModel (type: %s, tostring: %s)", typeof(PetModel), tostring(PetModel))
-  end
-
-  warn(string.format("GetPetUniqueIdString: Could not determine a string unique ID for %s using any available method.", PetIdentifierDescription))
-  return "stub_pet_unique_id_error"
-end
-
---[[
-  @param self table -- The table that contains the function
-  @param ActualFurnitureModel table -- The furniture model
-  @param FunctionContextName string -- The name of the function calling this
-  @param ParentContainerForContext table -- The parent container for the context
-  @return string -- The unique ID of the furniture
-]]
-function Ad:get_furniture_unique_id_from_model(ActualFurnitureModel, FunctionContextName, ParentContainerForContext)
-  if not ActualFurnitureModel then
-    warn(string.format("%s: Called GetFurnitureUniqueIdFromModel with a nil ActualFurnitureModel.", FunctionContextName))
-    return nil, nil
-  end
-
-  local FurnitureUniqueId = nil
-  local IdSource = nil
-  local ContainerNameForWarning = (ParentContainerForContext and ParentContainerForContext["Name"]) or "UnknownContainer"
-
-  FurnitureUniqueId = ActualFurnitureModel:GetAttribute("furniture_unique")
-  if (FurnitureUniqueId and typeof(FurnitureUniqueId) == "string") then
-    IdSource = "attribute (furniture_unique on model)"
-  else
-    warn(string.format("%s: Model '%s' in container '%s' is missing 'furniture_unique' string attribute. Falling back to model name.", FunctionContextName, ActualFurnitureModel["Name"] or "UnnamedModel", ContainerNameForWarning))
-    FurnitureUniqueId = ActualFurnitureModel["Name"]
-    if (typeof(FurnitureUniqueId) == "string") then
-      IdSource = "model_name (fallback)"
-    else
-      warn(string.format("%s: Model '%s' in container '%s' also has an invalid non-string model name. Cannot derive ID.", FunctionContextName, ActualFurnitureModel["Name"] or "UnnamedModel", ContainerNameForWarning))
-      FurnitureUniqueId = nil
-      IdSource = nil
-    end
-  end
-  return FurnitureUniqueId, IdSource
-end
-
---[[
-  @param self table -- The table that contains the function
-  @param FurnitureModel table -- The furniture model
-  @return table -- The vacant seat in the furniture
-]]
-function Ad:get_vacant_seat_from_model(FurnitureModel)
-  if not FurnitureModel then
-    -- warn("GetVacantSeatFromModel: Called with a nil FurnitureModel.") 
-    return nil
-  end
-  local UseBlocks = FurnitureModel:FindFirstChild("UseBlocks")
-  if UseBlocks then
-    local Seats = UseBlocks:GetChildren()
-    if #Seats > 0 then
-      return Seats[1]
-    end
-  end
-  return nil
-end
-
---[[
-  @param self table -- The table that contains the function
-  @param AilmentName string -- The name of the ailment
-  @return table -- The first furniture that matches the ailment
-]]
-function Ad:find_first_ailment_furniture(AilmentName)
-  local Keywords = AILMENT_KEYWORDS_MAP[AilmentName]
-  if not Keywords then
-    warn("FindFirstAilmentFurniture: No keywords defined for ailment: " .. AilmentName)
-    return nil
-  end
-
-  local FurnitureFolder = workspace["HouseInteriors"] and workspace["HouseInteriors"]:FindFirstChild("furniture")
-  if not FurnitureFolder then
-    warn("FindFirstAilmentFurniture: workspace.HouseInteriors.furniture not found.")
-    return nil
-  end
-
-  for _, ContainerFolderInstance in FurnitureFolder:GetChildren() do
-    if ContainerFolderInstance:IsA("Folder") or ContainerFolderInstance:IsA("Model") then
-      for _, ActualFurnitureModel in ContainerFolderInstance:GetChildren() do
-        if ActualFurnitureModel:IsA("Model") or ActualFurnitureModel:IsA("BasePart") then
-          local FurnitureUniqueId, IdSource = self:get_furniture_unique_id_from_model(ActualFurnitureModel, "FindFirstAilmentFurniture", ContainerFolderInstance)
-
-          if FurnitureUniqueId then
-            local LowercaseActualModelName = string.lower(ActualFurnitureModel["Name"])
-            for _, Keyword in Keywords do
-              if string.find(LowercaseActualModelName, string.lower(Keyword)) then
-                local VacantSeatInstance = self:get_vacant_seat_from_model(ActualFurnitureModel)
-
-                warn(string.format("FindFirstAilmentFurniture: Found generic furniture. UniqueID: '%s' (source: %s), ModelName (actual): '%s', Container: '%s', For Ailment: '%s', Keyword: '%s', VacantSeat: %s",
-                  FurnitureUniqueId, IdSource, ActualFurnitureModel["Name"], ContainerFolderInstance["Name"], AilmentName, Keyword, VacantSeatInstance and VacantSeatInstance["Name"] or "nil"))
-
-                return {
-                  ["name"] = FurnitureUniqueId;
-                  ["model"] = ActualFurnitureModel;
-                  ["vacant_seat"] = VacantSeatInstance;
-                }
-              end
-            end
-          end
-        end
-      end
-    end
-  end
-
-  warn("FindFirstAilmentFurniture: No suitable owned furniture found for ailment: " .. AilmentName .. " (matching keywords, with a valid unique ID from model attribute or model name, and correct model structure).")
-  return nil
-end
-
---[[
-  @param self table -- The table that contains the function
-  @param PetModel table -- The pet model
-  @param AilmentName string -- The name of the ailment
-  @return boolean -- Whether the ailment exists for the pet
-]]
-function Ad:verify_ailment_exists(PetModel, AilmentName)
-  if (not PetModel) then
-    warn("VerifyAilmentExists: PetModel is nil.")
-    return false
-  end
-  if (not AilmentName) then
-    warn("VerifyAilmentExists: AilmentName is nil.")
-    return false
-  end
-
-  local PetUniqueId = self:get_pet_unique_id_string(PetModel)
-  if (not PetUniqueId or PetUniqueId == "stub_pet_unique_id_error") then
-    warn("VerifyAilmentExists: Could not get a valid Unique ID for PetModel: " .. PetModel["Name"] .. ". Cannot verify ailment.")
-    return false
-  end
-
-  local PlayerData = self:get_player_data()
-  if not PlayerData then return false end
-
-  if (not PlayerData["ailments_manager"] or not PlayerData["ailments_manager"]["ailments"]) then
-    warn("VerifyAilmentExists: Could not find ailment data path for LocalPlayer ('" .. LocalPlayer["Name"] .. "') in ClientData.")
-    return false
-  end
-
-  local AllPetsAilmentInfo = PlayerData["ailments_manager"]["ailments"]
-  local PetSpecificAilmentsInfo = AllPetsAilmentInfo[PetUniqueId]
-
-  if (PetSpecificAilmentsInfo and typeof(PetSpecificAilmentsInfo) == "table") then
-    for _, AilmentDataEntry in PetSpecificAilmentsInfo do
-      if (typeof(AilmentDataEntry) == "table" and AilmentDataEntry["kind"] == AilmentName) then
-        -- print(string.format("VerifyAilmentExists: Ailment '%s' FOUND for pet '%s'.", AilmentName, PetUniqueId))
-        return true
-      end
-    end
-  end
-
-  -- print(string.format("VerifyAilmentExists: Ailment '%s' NOT FOUND for pet '%s'.", AilmentName, PetUniqueId))
-  return false
-end
-
---[[
-  @param self table -- The table that contains the function
-  @return table -- The smart furniture
-]]
-function Ad:get_smart_furniture()
-  local FoundItems = {}
-  local FurnitureFolder = workspace["HouseInteriors"] and workspace["HouseInteriors"]:FindFirstChild("furniture")
-  if (not FurnitureFolder) then
-    warn("GetSmartFurniture: workspace.HouseInteriors.furniture not found!")
-    return FoundItems
-  end
-
-  for Ailment, FurnitureData in AILMENT_TO_FURNITURE_MODEL_MAP do
-    local ModelNameKey = FurnitureData[1]
-    local ActualFurnitureModel = FurnitureFolder:FindFirstChild(ModelNameKey, true)
-
-    if (ActualFurnitureModel) then
-      local ParentContainer = ActualFurnitureModel["Parent"]
-
-      if not (ParentContainer and ParentContainer["Parent"] == FurnitureFolder) then
-        local ContainerNameForContext = ParentContainer and ParentContainer["Name"] or "N/A (Parent not found or no name)"
-        warn(string.format("GetSmartFurniture: Smart furniture model '%s' (searched as '%s') found, but its parent ('%s') is not a direct container in FurnitureFolder. Skipping for ailment '%s'.", ActualFurnitureModel["Name"], ModelNameKey, ContainerNameForContext, Ailment))
-      else
-        local FurnitureUniqueId, IdSource = self:get_furniture_unique_id_from_model(ActualFurnitureModel, "GetSmartFurniture", ParentContainer)
-
-        if (FurnitureUniqueId) then
-          local VacantSeatInstance = self:get_vacant_seat_from_model(ActualFurnitureModel)
-
-          FoundItems[Ailment] = {
-            ["name"] = FurnitureUniqueId;
-            ["model"] = ActualFurnitureModel;
-            ["vacant_seat"] = VacantSeatInstance;
-          }
-          print(string.format("GetSmartFurniture: Found/processed smart furniture. UniqueID: '%s' (source: %s), Model: '%s'. For ailment '%s'. Searched for: %s", FurnitureUniqueId, IdSource, ActualFurnitureModel["Name"], Ailment, ModelNameKey))
-        else
-          local ContainerNameForWarn = ParentContainer and ParentContainer["Name"] or "UnknownContainer"
-          warn(string.format("GetSmartFurniture: Could not derive Unique ID for smart model '%s' (container: '%s') for ailment '%s'. It will not be registered as smart furniture.", ActualFurnitureModel["Name"] or "UnnamedModel", ContainerNameForWarn, Ailment))
-        end
-      end
-    end
-  end
-  return FoundItems
-end
-
---[[
-  @param self table -- The table that contains the function
-  @return table -- The smart furniture
-]]
-function Ad:initialize_smart_furniture()
-  local FurnitureDB = require(ReplicatedStorage["ClientDB"]["Housing"]["FurnitureDB"])
-  local PlayerData = self:get_player_data()
-  local CurrentMoney = nil
-  if (PlayerData and PlayerData["money"]) then
-    CurrentMoney = PlayerData["money"]
-  else
-    warn("InitializeSmartFurniture: Could not retrieve player money from ClientData. Cannot perform cost checks.")
-  end
-  if (not FurnitureDB) then
-    warn("InitializeSmartFurniture: FurnitureDB module not found or failed to load. Cannot perform cost checks or determine item costs.")
-  end
-  local CurrentSmartFurnitureItems = self:get_smart_furniture()
-  local FurnitureFolder = workspace["HouseInteriors"] and workspace["HouseInteriors"]:FindFirstChild("furniture")
-  if (not FurnitureFolder) then
-    warn("InitializeSmartFurniture: workspace.HouseInteriors.furniture not found! Cannot process smart furniture.")
-    SmartFurnitureMap = CurrentSmartFurnitureItems
-    return
-  end
-  local ItemsToBuy = {}
-  local ItemKindsToModelNames = {}
-  for Ailment, FurnitureData in AILMENT_TO_FURNITURE_MODEL_MAP do
-    if (not CurrentSmartFurnitureItems[Ailment]) then
-      local ModelName = FurnitureData[1]
-      local KindName = FurnitureData[2]
-      local CanAfford = true
-      local Cost = 0
-      if (FurnitureDB and CurrentMoney ~= nil) then
-        local ItemDBInfo = FurnitureDB[KindName]
-        if (ItemDBInfo and ItemDBInfo["cost"]) then
-          Cost = ItemDBInfo["cost"]
-          if (CurrentMoney < Cost) then
-            CanAfford = false
-            warn(string.format("InitializeSmartFurniture: Cannot afford '%s' (model: %s) for ailment '%s'. Cost: %d, Player Money: %d.", KindName, ModelName, Ailment, Cost, CurrentMoney))
-          end
-        else
-          warn(string.format("InitializeSmartFurniture: Could not find cost information for '%s' (model: %s) in FurnitureDB. Assuming it's free or data is missing.", KindName, ModelName))
-        end
-      elseif (CurrentMoney == nil and FurnitureDB and FurnitureDB[KindName] and FurnitureDB[KindName]["cost"] and FurnitureDB[KindName]["cost"] > 0) then
-        warn(string.format("InitializeSmartFurniture: Player money not available, but '%s' (model: %s) has a cost in DB. Purchase might fail.", KindName, ModelName))
-      end
-      if (CanAfford) then
-        table.insert(ItemsToBuy, { ["kind"] = KindName; ["properties"] = { cframe = CFrame.new(0, -1000, 0) }; })
-        ItemKindsToModelNames[KindName] = ModelName
-        warn(string.format("InitializeSmartFurniture: Queuing purchase for '%s' (model: %s, cost: %d) for ailment '%s'. Player Money: %s", KindName, ModelName, Cost, Ailment, CurrentMoney or 'Unknown'))
-      end
-    end
-  end
-  if (#ItemsToBuy > 0) then
-    local Success, ErrorMessage = pcall(function()
-      API["HousingAPI/BuyFurnitures"]:InvokeServer(ItemsToBuy)
-    end)
-    if (not Success) then
-      warn(string.format("InitializeSmartFurniture: Error purchasing furniture: %s", tostring(ErrorMessage)))
-      SmartFurnitureMap = CurrentSmartFurnitureItems
-      return
-    end
-
-    task.wait()
-
-    API["HousingAPI/PushFurnitureChanges"]:FireServer({})
-
-    task.wait()
-
-    for _, BoughtItemInfo in ItemsToBuy do
-      local ModelNameToFind = ItemKindsToModelNames[BoughtItemInfo["kind"]]
-      if (ModelNameToFind) then
-        local ActualNewFurnitureModel = FurnitureFolder:FindFirstChild(ModelNameToFind, true)
-        if (ActualNewFurnitureModel) then
-          local ParentContainer = ActualNewFurnitureModel["Parent"]
-
-          if not (ParentContainer and ParentContainer["Parent"] == FurnitureFolder) then
-            local ContainerNameForContext = ParentContainer and ParentContainer["Name"] or "N/A (Parent not found or no name)"
-            warn(string.format("InitializeSmartFurniture: Found purchased model '%s' (Kind: %s), but its parent structure is unexpected ('%s' is not in FurnitureFolder). Cannot add to smart map.", ActualNewFurnitureModel["Name"] or "UnnamedModel", BoughtItemInfo["kind"], ContainerNameForContext))
-          else
-            local FurnitureUniqueId, IdSource = self:get_furniture_unique_id_from_model(ActualNewFurnitureModel, "InitializeSmartFurniture", ParentContainer)
-
-            if (FurnitureUniqueId) then
-              local VacantSeatInstance = self:get_vacant_seat_from_model(ActualNewFurnitureModel)
-
-              local FurnitureObject = {
-                ["name"] = FurnitureUniqueId;
-                ["model"] = ActualNewFurnitureModel;
-                ["vacant_seat"] = VacantSeatInstance;
-              }
-
-              for AilmentInner, FurnitureDataInner in AILMENT_TO_FURNITURE_MODEL_MAP do
-                local CurrentModelNameFromMap = FurnitureDataInner[1]
-                if ActualNewFurnitureModel["Name"] == CurrentModelNameFromMap and not CurrentSmartFurnitureItems[AilmentInner] then
-                  CurrentSmartFurnitureItems[AilmentInner] = FurnitureObject
-                  local ContainerNameForLog = ParentContainer and ParentContainer["Name"] or "UnknownContainer"
-                  warn(string.format("InitializeSmartFurniture: Successfully processed purchased item '%s' (UniqueID from %s: '%s', Container: '%s') for ailment '%s'.", ActualNewFurnitureModel["Name"] or "UnnamedModel", IdSource or "N/A", FurnitureUniqueId, ContainerNameForLog, AilmentInner))
-                  break
-                end
-              end
-            else
-              local ContainerNameForWarn = ParentContainer and ParentContainer["Name"] or "UnknownContainer"
-              warn(string.format("InitializeSmartFurniture: Could not derive a Unique ID for purchased model '%s' (Kind: %s, Container: '%s') after attribute/name check. Cannot add to smart map.", ActualNewFurnitureModel["Name"] or "UnnamedModel", BoughtItemInfo["kind"], ContainerNameForWarn))
-            end
-          end
-        else
-          warn(string.format("InitializeSmartFurniture: Failed to find purchased item model '%s' (kind: %s) recursively in workspace after buying.", ModelNameToFind, BoughtItemInfo["kind"]))
-        end
-      end
-    end
-  end
-  SmartFurnitureMap = CurrentSmartFurnitureItems
-end
-
---[[
-  Teleports the player to a specific ailment location or sets their CFrame directly for certain locations.
-  @param Location string -- The location name (e.g., "beach", "park", "camping")
-]]
-function Ad:teleport_to_ailment_location(Location)
-  local MainLocationMap = {
-    ["beach"] = workspace["StaticMap"]["Beach"]["BeachPartyAilmentTarget"]["CFrame"];
-    ["park"] = workspace["StaticMap"]["Park"]["BoredAilmentTarget"]["CFrame"];
-    ["camping"] = workspace["StaticMap"]["Campsite"]["CampsiteOrigin"]["CFrame"];
-  }
-
-  local Success, ErrorMessage = pcall(function()
-    if (MainLocationMap[Location]) then
-      API["LocationAPI/SetLocation"]:FireServer("MainMap", nil, "Default")
-      task.wait()
-      LocalPlayer["Character"]["HumanoidRootPart"]["CFrame"] = MainLocationMap[Location] * CFrame.new(0, 5, 0)
-    else
-      API["LocationAPI/SetLocation"]:FireServer(Location)
-    end
-  end)
-
-  if (not Success) then
-    warn(string.format("Error teleporting to %s: %s", Location, ErrorMessage or "Unknown error"))
-  end
-end
-
---[[
-  Places and uses a sitable furniture object at a given CFrame for a pet.
-  @param SitableFurnitureObject table -- The furniture object to use
-  @param TargetCFrame CFrame -- The CFrame to place the furniture at
-  @param PetModel Instance -- The pet model to use the furniture
-]]
-function Ad:place_and_use_sitable_at_cframe(SitableFurnitureObject, TargetCFrame, PetModel)
-  if (not SitableFurnitureObject or not SitableFurnitureObject["name"] or not SitableFurnitureObject["model"] or not TargetCFrame) then
-    warn(string.format("PlaceAndUseSitableAtCFrame: Invalid arguments. SitableFurnitureObject: %s, TargetCFrame: %s", tostring(SitableFurnitureObject), tostring(TargetCFrame)))
-    return
-  end
-
-  task.wait()
-
-  local SeatToUse = "UseBlock"
-  if (SitableFurnitureObject["vacant_seat"] and SitableFurnitureObject["vacant_seat"]["Name"]) then
-    SeatToUse = SitableFurnitureObject["vacant_seat"]["Name"]
-  end
-
-  API["HousingAPI/ActivateFurniture"]:InvokeServer(
-    LocalPlayer,
-    SitableFurnitureObject["name"],
-    SeatToUse,
-    { ["cframe"] = TargetCFrame },
-    PetModel
-  )
-end
-
---[[
-  Uses a sitable furniture object at the player's character CFrame for a pet.
-  @param SitableFurnitureObject table -- The furniture object to use
-  @param PetModel Instance -- The pet model to use the furniture
-]]
-function Ad:use_sitable_at_character_cframe(SitableFurnitureObject, PetModel)
-  if (not SitableFurnitureObject or not SitableFurnitureObject["name"] or not SitableFurnitureObject["model"] or not PetModel) then
-    warn(string.format("UseSitableAtCharacterCFrame: Invalid arguments. SitableFurnitureObject: %s, PetModel: %s", tostring(SitableFurnitureObject), tostring(PetModel)))
-    return
-  end
-
-  if (not LocalPlayer["Character"] or not LocalPlayer["Character"]:FindFirstChild("HumanoidRootPart")) then
-    warn("UseSitableAtCharacterCFrame: LocalPlayer.Character.HumanoidRootPart not found. Cannot determine target CFrame.")
-    return
-  end
-  local TargetCFrame = LocalPlayer["Character"]["HumanoidRootPart"]["CFrame"]
-
-  local SeatToUse = "UseBlock"
-  if (SitableFurnitureObject["vacant_seat"] and SitableFurnitureObject["vacant_seat"]["Name"]) then
-    SeatToUse = SitableFurnitureObject["vacant_seat"]["Name"]
-  end
-
-  warn(string.format("UseSitableAtCharacterCFrame: Activating furniture '%s' (Seat: '%s') at player CFrame for Pet: '%s'", SitableFurnitureObject["name"], SeatToUse, PetModel["Name"]))
-
-  API["HousingAPI/ActivateFurniture"]:InvokeServer(
-    LocalPlayer,
-    SitableFurnitureObject["name"],
-    SeatToUse,
-    { ["cframe"] = TargetCFrame },
-    PetModel
-  )
-end
-
---[[
-  @param self table -- The table that contains the function
-  @param AilmentTargetCFrame CFrame -- The CFrame to place the furniture at
-  @param LocationName string -- The name of the location
-  @param PetModel table -- The pet model
-  @param AilmentName string -- The name of the ailment
-]]
-function Ad:handle_smart_or_teleport_ailment(AilmentTargetCFrame, LocationName, PetModel, AilmentName)
-  local FurnitureToUse = nil
-  if (next(SmartFurnitureMap) == nil) then
-    self:initialize_smart_furniture() 
-  end
-
-  FurnitureToUse = SmartFurnitureMap[AilmentName]
-
-  if (not FurnitureToUse) then
-    FurnitureToUse = self:find_first_ailment_furniture(AilmentName)
-  end
-
-  if (FurnitureToUse) then
-    self:place_and_use_sitable_at_cframe(FurnitureToUse, AilmentTargetCFrame, PetModel)
-    return
-  end
-
-  self:teleport_to_ailment_location(LocationName)
-end
-
---[[
-  Returns the PlayerData table for the LocalPlayer from ClientData.
-  @param self table -- The table that contains the function
-  @return table? -- The PlayerData table, or nil if not found
-
-  Example:
-  ```lua
-  local PlayerData = Ad:get_player_data()
-  ```
-]]
-function Ad:get_player_data()
-  local ClientDataModule = require(ReplicatedStorage["ClientModules"]["Core"]["ClientData"])
-  local PlayerData = ClientDataModule.get_data()[LocalPlayer["Name"]]
-  if not PlayerData then
-    warn("Ad:get_player_data: Failed to retrieve PlayerData")
-  end
-  return PlayerData
-end
-
---[[
-  Purchases an edible item by name (from the 'food' category) and has the pet consume it. Handles all API calls and error conditions for the process.
-
-  @param self table -- The table that contains the function
-  @param PetModel Model -- The pet model to feed
-  @param ItemName string -- The name of the item to purchase and consume (e.g., "water", "apple")
-  @return boolean -- true if the process was initiated, false if failed
-
-  Example:
-  ```lua
-  local Success = Ad:purchase_and_consume_item(PetModel, "water")
-  ```
-]]
-function Ad:purchase_and_consume_item(PetModel, ItemName)
-  if (not PetModel) then warn("purchase_and_consume_item: PetModel is nil.") return false end
-  if (not ItemName or typeof(ItemName) ~= "string") then warn("purchase_and_consume_item: ItemName is invalid.") return false end
-
-  local PetUniqueId = self:get_pet_unique_id_string(PetModel)
-  if (not PetUniqueId or PetUniqueId == "stub_pet_unique_id_error") then
-    warn("purchase_and_consume_item: Could not get a valid unique ID for PetModel.")
-    return false
-  end
-
-  -- Always use 'food' as the category for edible items
-  local Category = "food"
-
-  local BuySuccess, BuyResult = pcall(function()
-    return API["ShopAPI/BuyItem"]:InvokeServer(Category, ItemName, {})
-  end)
-  if (not BuySuccess) then
-    warn("purchase_and_consume_item: Failed to purchase item:", BuyResult)
-    return false
-  end
-
-  task.wait(0.5)
-
-  local PlayerData = self:get_player_data()
-  if not PlayerData then return false end
-
-  local Inventory = PlayerData["inventory"]
-  local ItemTable = Inventory[Category]
-  if (not ItemTable) then
-    warn("purchase_and_consume_item: Inventory category not found:", Category)
-    return false
-  end
-
-  local LowerItem = string.lower(ItemName)
-  local FoundUniqueId = nil
-  for UniqueId, Info in ItemTable do
-    if (Info and string.lower(Info["kind"] or "") == LowerItem) then
-      FoundUniqueId = UniqueId
-      break
-    end
-  end
-  if (not FoundUniqueId) then
-    warn("purchase_and_consume_item: Could not find purchased item in inventory:", ItemName)
-    return false
-  end
-
-  local CreateSuccess, CreateResult = pcall(function()
-    return API["PetObjectAPI/CreatePetObject"]:InvokeServer(
-      "__Enum_PetObjectCreatorType_2",
-      {
-        ["additional_consume_uniques"] = {};
-        ["pet_unique"] = PetUniqueId;
-        ["unique_id"] = FoundUniqueId;
-      }
-    )
-  end)
-  if (not CreateSuccess) then
-    warn("purchase_and_consume_item: Failed to create item object:", CreateResult)
-    return false
-  end
-
-  local ConsumeSuccess, ConsumeResult = pcall(function()
-    API["PetAPI/ConsumeFoodObject"]:FireServer(Instance.new("Model", nil), PetUniqueId)
-  end)
-  if (not ConsumeSuccess) then
-    warn("purchase_and_consume_item: Failed to fire consume event:", ConsumeResult)
-    return false
-  end
-
-  return true
-end
-
---[[
-  @param self table -- The table that contains the function
-  @param PetModel table -- The pet model
-  @param AilmentName string -- The name of the ailment
-  @param TimeoutDurationSeconds number -- The timeout duration in seconds
-  @param OptionalExtraConditionFn function -- The optional extra condition function
-  @param ActionLambda function -- The action lambda function
-]]
-function Ad:execute_action_with_timeout(PetModel, AilmentName, TimeoutDurationSeconds, OptionalExtraConditionFn, ActionLambda)
-  local ActionCoroutine = coroutine.create(function()
-    return pcall(ActionLambda)
-  end)
-
-  local CoroutineResumeSuccess, WasActionPcallSuccessful, ActionPcallResultOrError = coroutine.resume(ActionCoroutine)
-
-  if not CoroutineResumeSuccess then
-    warn(string.format("ExecuteActionWithTimeout: Coroutine for action '%s' failed to resume: %s", AilmentName, tostring(WasActionPcallSuccessful))) -- Second arg is error if resume fails
-    return false, "Coroutine resume failure: " .. tostring(WasActionPcallSuccessful)
-  end
-
-  if not WasActionPcallSuccessful then
-    warn(string.format("ExecuteActionWithTimeout: ActionLambda for '%s' (pcall inside coroutine) failed: %s", AilmentName, tostring(ActionPcallResultOrError)))
-    -- Decide if we should still wait for ailment clearance. For now, let's assume an action error means it likely won't clear as expected.
-    -- However, the original script often waits even if the action has issues, so we'll proceed with waiting but acknowledge the error.
-  end
-
-  local StartTime = os.clock()
-  local AilmentCleared = false
-  local TimedOut = false
-  local FinalMessage = ""
-
-  repeat
-    task.wait(0.2)
-
-    local CurrentAilmentExists = self:verify_ailment_exists(PetModel, AilmentName)
-    local ExtraConditionMet = true
-    if OptionalExtraConditionFn then
-      local ExtraSuccess, ExtraResult = pcall(OptionalExtraConditionFn)
-      ExtraConditionMet = ExtraSuccess and ExtraResult
-      if not ExtraSuccess then
-        warn(string.format("ExecuteActionWithTimeout: Error in OptionalExtraConditionFn for '%s': %s", AilmentName, tostring(ExtraResult)))
-      end
-    end
-
-    if not CurrentAilmentExists and ExtraConditionMet then
-      AilmentCleared = true
-      FinalMessage = string.format("Ailment '%s' for pet '%s' cleared successfully.", AilmentName, self:get_pet_unique_id_string(PetModel))
-      if not WasActionPcallSuccessful then
-        FinalMessage = FinalMessage .. string.format(" (Note: Initial action reported an error: %s)", tostring(ActionPcallResultOrError))
-      end
-      break
-    end
-
-    if os.clock() - StartTime > TimeoutDurationSeconds then
-      TimedOut = true
-      FinalMessage = string.format("TIMEOUT waiting for ailment '%s' on pet '%s' to clear after %d seconds. AilmentStillExists: %s, ExtraConditionMet: %s",
-        AilmentName, self:get_pet_unique_id_string(PetModel), TimeoutDurationSeconds, tostring(CurrentAilmentExists), tostring(ExtraConditionMet))
-      if not WasActionPcallSuccessful then
-        FinalMessage = FinalMessage .. string.format(" (Note: Initial action also reported an error: %s)", tostring(ActionPcallResultOrError))
-      end
-      break
-    end
-  until AilmentCleared or TimedOut
-
-  if TimedOut then
-    local CoroutineStatus = coroutine.status(ActionCoroutine)
-    if CoroutineStatus ~= "dead" then
-      warn(string.format("ExecuteActionWithTimeout: Action coroutine for '%s' is still '%s' after timeout. It may complete or be stuck if it doesn't yield.", AilmentName, CoroutineStatus))
-    end
-  end
-
-  return AilmentCleared, FinalMessage
-end
-
---[[
-  @param self table -- The table that contains the function
-  @return table -- The current ailments
-]]
-function Ad:get_current_ailments()
-  local PlayerData = self:get_player_data()
-  local PetAilmentsResult = {}
-
-  if (not PlayerData or not PlayerData["ailments_manager"] or not PlayerData["ailments_manager"]["ailments"]) then
-    warn("GetCurrentAilments: Could not find ailment data for LocalPlayer ('" .. LocalPlayer["Name"] .. "') in ClientData. Structure might be unexpected or data not yet available.")
-    return PetAilmentsResult
-  end
-
-  for PetUnique, AilmentInfo in PlayerData["ailments_manager"]["ailments"] do
-    local CurrentPetSpecificAilments = {}
-
-    if type(AilmentInfo) == "table" then
-      for AilmentName, AilmentData in AilmentInfo do
-        if type(AilmentData) == "table" and AilmentData["kind"] then
-          table.insert(CurrentPetSpecificAilments, AilmentData["kind"])
-        end
-      end
-    end
-
-    if #CurrentPetSpecificAilments > 0 then
-      table.insert(PetAilmentsResult, {
-        ["unique"] = PetUnique;
-        ["ailments"] = CurrentPetSpecificAilments;
-      })
-    end
-  end
-
-  return PetAilmentsResult
-end
-
---[[
-  @param self table -- The table that contains the function
-  @param PetUniqueIdToFind string -- The unique ID of the pet to find
-  @return table -- The pet model
-]]
-function Ad:get_pet_model_by_unique_id(PetUniqueIdToFind) 
-  if not EquippedPetsModule then
-    warn("GetPetModelByUniqueId: EquippedPetsModule is not loaded. Cannot fetch pet model.")
-    return nil
-  end
-
-  if not PetUniqueIdToFind then
-    warn("GetPetModelByUniqueId: PetUniqueIdToFind is nil.")
-    return nil
-  end
-
-  -- print(string.format("DEBUG: GetPetModelByUniqueId calling EquippedPetsModule.get_wrapper_from_unique for ID: %s", tostring(PetUniqueIdToFind)))
-  local Wrapper = EquippedPetsModule.get_wrapper_from_unique(PetUniqueIdToFind, LocalPlayer)
-
-  if Wrapper then
-    -- print(string.format("DEBUG: GetPetModelByUniqueId: Wrapper FOUND for ID: %s. Wrapper type: %s", tostring(PetUniqueIdToFind), type(Wrapper)))
-    local PetModel = Wrapper["char"]
-    if PetModel and PetModel:IsA("Model") then
-      return PetModel
-    else
-      warn("GetPetModelByUniqueId: Wrapper found for " .. PetUniqueIdToFind .. ", but .char (PetModel) is missing or not a Model.")
-      return nil
-    end
-  else
-    -- print(string.format("DEBUG: GetPetModelByUniqueId: Wrapper NOT FOUND for ID: %s", tostring(PetUniqueIdToFind)))
-    warn("GetPetModelByUniqueId: No wrapper found for unique ID: " .. PetUniqueIdToFind .. ". Pet might not be equipped or ID is invalid.")
-    return nil
-  end
-end
-
---[[
-  @param self table -- The table that contains the function
-  @return table -- The equipped pet models
-]]
-function Ad:get_my_equipped_pet_models()
-  if not EquippedPetsModule then
-    warn("GetMyEquippedPetModels: EquippedPetsModule is not loaded. Cannot fetch pet models.")
-    return {}
-  end
-
-  local EquippedWrappers = EquippedPetsModule.get_my_equipped_char_wrappers()
-  local PetModels = {}
-
-  if not EquippedWrappers or #EquippedWrappers == 0 then
-    return PetModels
-  end
-
-  for _, Wrapper in EquippedWrappers do
-    local PetModel = Wrapper["char"]
-    if PetModel and PetModel:IsA("Model") then
-      table.insert(PetModels, PetModel)
-    else
-      local PetUniqueId = Wrapper["pet_unique"]
-      if PetUniqueId then
-        warn("GetMyEquippedPetModels: Wrapper found for unique:", PetUniqueId, "- but pet model (char) is missing or invalid.")
-      else
-        warn("GetMyEquippedPetModels: Wrapper found but pet model (char) is missing/invalid and no unique ID on wrapper.")
-      end
-    end
-  end
-  return PetModels
-end
-
---[[
-  @param self table -- The table that contains the function
-  @return table -- The equipped pet unique IDs
-]]
-function Ad:get_my_equipped_pet_uniques()
-  if not EquippedPetsModule then
-    warn("GetMyEquippedPetUniques: EquippedPetsModule is not loaded. Cannot fetch pet unique IDs.")
-    return {}
-  end
-
-  -- print("DEBUG: GetMyEquippedPetUniques calling EquippedPetsModule.get_my_equipped_char_wrappers()")
-  local EquippedWrappers = EquippedPetsModule.get_my_equipped_char_wrappers()
-
-  if not EquippedWrappers then
-    -- print("DEBUG: GetMyEquippedPetUniques: EquippedPetsModule.get_my_equipped_char_wrappers() returned nil")
-  else
-    -- print("DEBUG: GetMyEquippedPetUniques: EquippedPetsModule.get_my_equipped_char_wrappers() returned a table with " .. #EquippedWrappers .. " wrappers.")
-  end
-
-  local PetUniqueIds = {}
-
-  if not EquippedWrappers or #EquippedWrappers == 0 then
-    return PetUniqueIds
-  end
-
-  for _, Wrapper in EquippedWrappers do
-    local PetUniqueId = Wrapper["pet_unique"]
-    if PetUniqueId and type(PetUniqueId) == "string" then
-      table.insert(PetUniqueIds, PetUniqueId)
-    else
-      warn("GetMyEquippedPetUniques: Wrapper found but pet_unique ID is missing or not a string.")
-    end
-  end
-  return PetUniqueIds
-end
-
---[[
-  @param self table -- The table that contains the function
-]]
-function Ad:setup_safety_platforms()
-  local SafetyPlatformsFolder = workspace:FindFirstChild("SafetyPlatforms")
-  if not SafetyPlatformsFolder then
-    SafetyPlatformsFolder = Instance.new("Folder")
-    SafetyPlatformsFolder.Name = "SafetyPlatforms"
-    SafetyPlatformsFolder.Parent = workspace
-  end
-
-  local PlatformSize = Vector3.new(250, 4, 250) 
-  local PlatformColor = Color3.fromRGB(120, 130, 140) 
-  local PlatformMaterial = Enum.Material.Concrete
-
-  local function CreatePlatformIfMissing(Name, TargetPosition)
-    if not TargetPosition then
-      warn("SetupSafetyPlatforms: Cannot create platform '", Name, "' because TargetPosition is nil.")
-      return
-    end
-
-    local ExistingPlatform = SafetyPlatformsFolder:FindFirstChild(Name)
-    if ExistingPlatform and ExistingPlatform:IsA("Part") then
-      return 
-    elseif ExistingPlatform then
-      ExistingPlatform:Destroy() 
-    end
-
-    local Platform = Instance.new("Part")
-    Platform.Name = Name
-    Platform.Size = PlatformSize
-    Platform.Anchored = true
-    Platform.CanCollide = true
-    Platform.Color = PlatformColor
-    Platform.Material = PlatformMaterial
-    Platform.TopSurface = Enum.SurfaceType.Smooth
-    Platform.BottomSurface = Enum.SurfaceType.Smooth
-    -- Center the platform at TargetPosition, with the top surface at TargetPosition.Y
-    Platform.Position = Vector3.new(TargetPosition.X, TargetPosition.Y - (PlatformSize.Y / 2), TargetPosition.Z)
-    Platform.Parent = SafetyPlatformsFolder
-    print(string.format("SetupSafetyPlatforms: Created platform '%s'. Target Position: %s, Platform Position: %s", Name, tostring(TargetPosition), tostring(Platform.Position)))
-  end
-
-  local ParkStaticMap = workspace:FindFirstChild("StaticMap")
-  if ParkStaticMap then
-    local ParkTarget = ParkStaticMap:FindFirstChild("Park")
-    if ParkTarget and ParkTarget:FindFirstChild("BoredAilmentTarget") and ParkTarget.BoredAilmentTarget:IsA("BasePart") then
-      CreatePlatformIfMissing("SafetyPlatform_Park", ParkTarget.BoredAilmentTarget.Position)
-    else
-      warn("SetupSafetyPlatforms: Could not find StaticMap.Park.BoredAilmentTarget Position or it's not a BasePart.")
-    end
-    local BeachTarget = ParkStaticMap:FindFirstChild("Beach")
-    if BeachTarget and BeachTarget:FindFirstChild("BeachPartyAilmentTarget") and BeachTarget.BeachPartyAilmentTarget:IsA("BasePart") then
-      CreatePlatformIfMissing("SafetyPlatform_Beach", BeachTarget.BeachPartyAilmentTarget.Position)
-    else
-      warn("SetupSafetyPlatforms: Could not find StaticMap.Beach.BeachPartyAilmentTarget Position or it's not a BasePart.")
-    end
-    local CampsiteTarget = ParkStaticMap:FindFirstChild("Campsite")
-    if CampsiteTarget and CampsiteTarget:FindFirstChild("CampsiteOrigin") and CampsiteTarget.CampsiteOrigin:IsA("BasePart") then
-      CreatePlatformIfMissing("SafetyPlatform_Campsite", CampsiteTarget.CampsiteOrigin.Position)
-    else
-      warn("SetupSafetyPlatforms: Could not find StaticMap.Campsite.CampsiteOrigin Position or it's not a BasePart.")
-    end
-  else
-    warn("SetupSafetyPlatforms: Could not find StaticMap.")
-  end
-
-  if LocalPlayer and LocalPlayer["Name"] then
-    local HouseInteriors = workspace:FindFirstChild("HouseInteriors")
-    if HouseInteriors then
-      local BlueprintFolder = HouseInteriors:FindFirstChild("blueprint")
-      if BlueprintFolder then
-        local PlayerHouseBlueprint = BlueprintFolder:FindFirstChild(LocalPlayer["Name"])
-        if PlayerHouseBlueprint then
-          local FloorsFolder = PlayerHouseBlueprint:FindFirstChild("Floors")
-          if FloorsFolder then
-            local FloorParts = FloorsFolder:GetChildren()
-            if #FloorParts > 0 and FloorParts[1]:IsA("BasePart") then
-              local MainFloorPart = FloorParts[1]
-              local HomeFloorTopPosition = MainFloorPart.Position + Vector3.new(0, MainFloorPart.Size.Y / 2, 0)
-              CreatePlatformIfMissing("SafetyPlatform_Home_" .. LocalPlayer["Name"], HomeFloorTopPosition)
-            else
-              warn("SetupSafetyPlatforms: Could not find suitable floor part for player: ", LocalPlayer["Name"])
-            end
-          else
-            warn("SetupSafetyPlatforms: Could not find FloorsFolder for player: ", LocalPlayer["Name"])
-          end
-        else
-          warn("SetupSafetyPlatforms: Could not find PlayerHouseBlueprint for player: ", LocalPlayer["Name"])
-        end
-      else
-        warn("SetupSafetyPlatforms: Could not find HouseInteriors.blueprint folder.")
-      end
-    else
-      warn("SetupSafetyPlatforms: Could not find HouseInteriors folder.")
-    end
-  else
-    warn("SetupSafetyPlatforms: LocalPlayer or LocalPlayer.Name not available for Home platform.")
-  end
-end
 
 -- [[ FUNCTION TO PROCESS TASK PLAN - TO BE EXPANDED ]] --
 --[[
@@ -1940,7 +968,7 @@ end
 -- Main loop to monitor _G.PetFarm
 local CurrentInstanceLoopId = HttpService:GenerateGUID(false)
 _G.PetFarmLoopInstanceId = CurrentInstanceLoopId
-print("PetFarmOfficial.luau loop started with ID: " .. CurrentInstanceLoopId .. ". To stop this specific loop instance if script is re-run, simply re-run the script. To pause operations, set _G.PetFarm = false.")
+print(string.format("PetFarmOfficial.luau loop started with ID: %s. To stop this specific loop instance if script is re-run, simply re-run the script. To pause operations, set _G.PetFarm = false.", CurrentInstanceLoopId))
 
 Ad:setup_safety_platforms()
 
@@ -1958,14 +986,14 @@ while _G.PetFarmLoopInstanceId == CurrentInstanceLoopId and task.wait(10) do
 
     if #CurrentEquippedPetUniqueIds == 0 then
       if not IsEquippedPetsModuleReportingNoPets then
-        warn(os.date("%X") .. " - PetFarm CRITICAL WARNING: EquippedPetsModule is reporting NO equipped pets. All PetFarm operations requiring pet models will be paused until the module provides pet data. (Loop ID: " .. CurrentInstanceLoopId .. ")")
+        warn(string.format("%s - PetFarm CRITICAL WARNING: EquippedPetsModule is reporting NO equipped pets. All PetFarm operations requiring pet models will be paused until the module provides pet data. (Loop ID: %s)", os.date("%X"), CurrentInstanceLoopId))
         IsEquippedPetsModuleReportingNoPets = true
       elseif LoopCounter % 10 == 0 then 
-        warn(os.date("%X") .. " - PetFarm INFO: EquippedPetsModule continues to report NO equipped pets. Operations remain paused. (Loop ID: " .. CurrentInstanceLoopId .. ")")
+        warn(string.format("%s - PetFarm INFO: EquippedPetsModule continues to report NO equipped pets. Operations remain paused. (Loop ID: %s)", os.date("%X"), CurrentInstanceLoopId))
       end
     else 
       if IsEquippedPetsModuleReportingNoPets then
-        print(os.date("%X") .. " - PetFarm INFO: EquippedPetsModule is NOW reporting equipped pets (" .. #CurrentEquippedPetUniqueIds .. " found). Resuming normal operations. (Loop ID: " .. CurrentInstanceLoopId .. ")")
+        print(string.format("%s - PetFarm INFO: EquippedPetsModule is NOW reporting equipped pets (%d found). Resuming normal operations. (Loop ID: %s)", os.date("%X"), #CurrentEquippedPetUniqueIds, CurrentInstanceLoopId))
         IsEquippedPetsModuleReportingNoPets = false 
       end
 
@@ -1975,7 +1003,7 @@ while _G.PetFarmLoopInstanceId == CurrentInstanceLoopId and task.wait(10) do
       local PlannerAilmentCategories = TaskPlanner:GetAilmentCategories() 
 
       if #AllPetsAilmentsData > 0 then
-        print(os.date("%X") .. " - Raw Detected Pet Ailments Report (Loop ID: " .. CurrentInstanceLoopId .. "):")
+        print(string.format("%s - Raw Detected Pet Ailments Report (Loop ID: %s):", os.date("%X"), CurrentInstanceLoopId))
         for _, PetRawDataEntry in AllPetsAilmentsData do
           print(string.format("  Pet Unique ID: %s, Ailments: [%s]", PetRawDataEntry["unique"], table.concat(PetRawDataEntry["ailments"], ", ")))
         end
@@ -1988,7 +1016,7 @@ while _G.PetFarmLoopInstanceId == CurrentInstanceLoopId and task.wait(10) do
 
           if not PetModel then
             warn(string.format("PetFarm: Pet '%s' has ailments but its model was not found via EquippedPetsModule. Attempting to equip... (Loop ID: %s)", PetUniqueId, CurrentInstanceLoopId))
-            API["ToolAPI/Equip"]:InvokeServer(PetUniqueId, {["use_sound_delay"] = false, ["equip_as_last"] = false})
+            Ad.__api.tool.equip(PetUniqueId, {["use_sound_delay"] = false, ["equip_as_last"] = false})
             task.wait(3) 
 
             PetModel = Ad:get_pet_model_by_unique_id(PetUniqueId) 
@@ -2036,28 +1064,27 @@ while _G.PetFarmLoopInstanceId == CurrentInstanceLoopId and task.wait(10) do
 
               ProcessTaskPlan(PetDataForPlanner["unique"], PetModel, GeneratedPlan, AilmentActions, PetRawData["ailments"])
             else
-              warn("TaskPlanner or PlanFormatter not loaded correctly. Cannot generate or print plan. (Loop ID: " .. CurrentInstanceLoopId .. ")")
+              warn(string.format("TaskPlanner or PlanFormatter not loaded correctly. Cannot generate or print plan. (Loop ID: %s)", CurrentInstanceLoopId))
             end
           end
         end
 
       else
         if LoopCounter % 10 == 0 then 
-          print(os.date("%X") .. " - No current pet ailments detected for any pet (and module is reporting pets). (Loop ID: " .. CurrentInstanceLoopId .. ")")
+          print(string.format("%s - No current pet ailments detected for any pet (and module is reporting pets). (Loop ID: %s)", os.date("%X"), CurrentInstanceLoopId))
         end
       end
     end 
   else
     if LoopCounter % 30 == 0 then 
-      print("PetFarm is INACTIVE (loop ID: " .. CurrentInstanceLoopId .. ", checked at " .. os.date("%X") .. ")")
+      print(string.format("%s - PetFarm is INACTIVE (loop ID: %s, checked at %s)", os.date("%X"), CurrentInstanceLoopId, os.date("%X")))
     end
   end
 end
 
 if _G.PetFarmLoopInstanceId ~= CurrentInstanceLoopId then
   print(string.format("PetFarmOfficial.luau loop with ID: %s stopping as a new instance has started (new active ID: %s).", CurrentInstanceLoopId, tostring(_G.PetFarmLoopInstanceId)))
-else
-  print("PetFarmOfficial.luau loop with ID: " .. CurrentInstanceLoopId .. " stopping. If _G.PetFarmLoopInstanceId was manually cleared or script execution ended, this is expected.")
+  return
 end
 
-
+print(string.format("PetFarmOfficial.luau loop with ID: %s stopping. If _G.PetFarmLoopInstanceId was manually cleared or script execution ended, this is expected.", CurrentInstanceLoopId))
