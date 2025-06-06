@@ -445,7 +445,7 @@ local AilmentActions = {
           if FurnitureItem then
             warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
             
-            if Ad:STUBBED_is_furniture_owned(FurnitureItem.name) then
+            if Ad:is_furniture_owned(FurnitureItem) then
               Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
             else
               Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
@@ -533,7 +533,7 @@ local AilmentActions = {
           if FurnitureItem then
             warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
             
-            if Ad:STUBBED_is_furniture_owned(FurnitureItem.name) then
+            if Ad:is_furniture_owned(FurnitureItem.name) then
               Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
             else
               Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
@@ -654,7 +654,7 @@ local AilmentActions = {
 
             if FurnitureItem then
               warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-              if Ad:STUBBED_is_furniture_owned(FurnitureItem.name) then
+              if Ad:is_furniture_owned(FurnitureItem.name) then
                 local TargetCFrame = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.CFrame
                 if TargetCFrame then
                   Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
@@ -687,7 +687,7 @@ local AilmentActions = {
           if FurnitureItem then
             warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
             
-            if Ad:STUBBED_is_furniture_owned(FurnitureItem.name) then
+            if Ad:is_furniture_owned(FurnitureItem.name) then
               Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
             else
               Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
