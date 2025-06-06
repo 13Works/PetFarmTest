@@ -32,6 +32,11 @@ do -- Initialize API
   loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/RenderAPI.lua"), true))()
 
   Ad.__api = {
+    ["ailments"] = {
+      ["choose_mystery_ailment"] = function(PetUniqueId, Choice)
+        API["AilmentAPI/ChooseMysteryAilment"]:FireServer(PetUniqueId, "mystery", 1, Choice)
+      end
+    };
     ["housing"] = {
       ["activate_interior_furniture"] = function(InteriorUniqueId, FurnitureUniqueId, UseBlock, PetModel)
         API["HousingAPI/ActivateInteriorFurniture"]:InvokeServer(InteriorUniqueId, FurnitureUniqueId, UseBlock, PetModel)
@@ -1209,6 +1214,8 @@ end
   @return boolean -- true if the process was initiated, false if failed
 ]]
 function Ad:go_home()
+  print("DEBUG: Skipping go_home()")
+  return true
   print("Ad:go_home() Attempting to go home")
   local Success, ErrorMessage = pcall(function()
     Ad.__api.pet.exit_furniture_use_states()
