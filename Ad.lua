@@ -44,6 +44,9 @@ do -- Initialize API
       end,
       ["buy_furnitures"] = function(ItemsToBuy)
         API["HousingAPI/BuyFurnitures"]:InvokeServer(ItemsToBuy)
+      end,
+      ["activate_furniture"] = function(FurnitureName, SeatToUse, PositionData, PetModel)
+        API["HousingAPI/ActivateFurniture"]:InvokeServer(LocalPlayer, FurnitureName, SeatToUse, PositionData, PetModel)
       end
     };
     ["pet_object"] = {
