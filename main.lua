@@ -415,6 +415,10 @@ local AilmentActions = {
             return
           end
           local FurnitureItem = Ad:retrieve_smart_furniture("sleepy", true, true)
+          print("DEBUG: FurnitureItem:", FurnitureItem)
+          print("DEBUG: FurnitureItem.model:", FurnitureItem["model"], (typeof(FurnitureItem["model"]) == "Instance" and FurnitureItem["model"]["Name"]) or "N/A")
+          print("DEBUG: FurnitureItem.vacant_seat:", FurnitureItem["vacant_seat"])
+          print("DEBUG: FurnitureItem.name:", FurnitureItem["name"])
 
           if not FurnitureItem then
             warn("PetFarmOfficial.AilmentActions.sleepy.Standard: No suitable smart or generic owned crib/bed found.")
@@ -455,6 +459,10 @@ local AilmentActions = {
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
           local FurnitureItem = Ad:retrieve_smart_furniture("sleepy", true, true)
+          print("DEBUG: FurnitureItem:", FurnitureItem)
+          print("DEBUG: FurnitureItem.model:", FurnitureItem["model"], (typeof(FurnitureItem["model"]) == "Instance" and FurnitureItem["model"]["Name"]) or "N/A")
+          print("DEBUG: FurnitureItem.vacant_seat:", FurnitureItem["vacant_seat"])
+          print("DEBUG: FurnitureItem.name:", FurnitureItem["name"])
 
           if not FurnitureItem then
             warn("PetFarmOfficial.AilmentActions.sleepy.Smart: No suitable smart or generic owned crib/bed found.")
@@ -508,6 +516,10 @@ local AilmentActions = {
             return
           end
           local FurnitureItem = Ad:retrieve_smart_furniture("dirty", true, true)
+          print("DEBUG: FurnitureItem:", FurnitureItem)
+          print("DEBUG: FurnitureItem.model:", FurnitureItem["model"], (typeof(FurnitureItem["model"]) == "Instance" and FurnitureItem["model"]["Name"]) or "N/A")
+          print("DEBUG: FurnitureItem.vacant_seat:", FurnitureItem["vacant_seat"])
+          print("DEBUG: FurnitureItem.name:", FurnitureItem["name"])
 
           if not FurnitureItem then
             warn("PetFarmOfficial.AilmentActions.dirty.Standard: No suitable smart or generic owned shower/bath found.")
@@ -548,6 +560,10 @@ local AilmentActions = {
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
           local FurnitureItem = Ad:retrieve_smart_furniture("dirty", true, true)
+          print("DEBUG: FurnitureItem:", FurnitureItem)
+          print("DEBUG: FurnitureItem.model:", FurnitureItem["model"], (typeof(FurnitureItem["model"]) == "Instance" and FurnitureItem["model"]["Name"]) or "N/A")
+          print("DEBUG: FurnitureItem.vacant_seat:", FurnitureItem["vacant_seat"])
+          print("DEBUG: FurnitureItem.name:", FurnitureItem["name"])
 
           if not FurnitureItem then
             warn("PetFarmOfficial.AilmentActions.dirty.Smart: No suitable smart or generic owned shower/bath found.")
@@ -652,6 +668,10 @@ local AilmentActions = {
             return
           end
           local FurnitureItem = Ad:retrieve_smart_furniture("toilet", true, true)
+          print("DEBUG: FurnitureItem:", FurnitureItem)
+          print("DEBUG: FurnitureItem.model:", FurnitureItem["model"], (typeof(FurnitureItem["model"]) == "Instance" and FurnitureItem["model"]["Name"]) or "N/A")
+          print("DEBUG: FurnitureItem.vacant_seat:", FurnitureItem["vacant_seat"])
+          print("DEBUG: FurnitureItem.name:", FurnitureItem["name"])
 
           if not FurnitureItem then
             warn("PetFarmOfficial.AilmentActions.toilet.Standard: No suitable smart or generic owned toilet/litter box found.")
@@ -692,6 +712,10 @@ local AilmentActions = {
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
           local FurnitureItem = Ad:retrieve_smart_furniture("toilet", true, true)
+          print("DEBUG: FurnitureItem:", FurnitureItem)
+          print("DEBUG: FurnitureItem.model:", FurnitureItem["model"], (typeof(FurnitureItem["model"]) == "Instance" and FurnitureItem["model"]["Name"]) or "N/A")
+          print("DEBUG: FurnitureItem.vacant_seat:", FurnitureItem["vacant_seat"])
+          print("DEBUG: FurnitureItem.name:", FurnitureItem["name"])
 
           if not FurnitureItem then
             warn("PetFarmOfficial.AilmentActions.toilet.Smart: No suitable smart or generic owned toilet/litter box found.")
