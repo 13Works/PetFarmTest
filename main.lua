@@ -175,7 +175,14 @@ local function FurnitureCoreAction(PetModel, Config)
   local FurnitureItem = Ad:retrieve_smart_furniture(Config.AilmentName, true, true)
   if not FurnitureItem then
     warn(string.format("PetFarmOfficial.AilmentActions.%s: No suitable furniture asset found for ailment: %s", Config.AilmentName, Config.AilmentName))
-    return
+    warn("Attempting to check at home...")
+    Ad:go_home()
+    task.wait(0.5)
+    FurnitureItem = Ad:retrieve_smart_furniture(Config.AilmentName, true, true)
+    if not FurnitureItem then
+      warn(string.format("PetFarmOfficial.AilmentActions.%s: No suitable furniture asset found for ailment: %s", Config.AilmentName, Config.AilmentName))
+      return
+    end
   end
   warn(string.format("PetFarmOfficial.AilmentActions.%s: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", Config.AilmentName, FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
   Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
@@ -316,7 +323,6 @@ local AilmentActions = {
   [AILMENTS.RIDE] = NewAilmentAction {
     ["AilmentName"] = AILMENTS.RIDE;
     ["DefaultTimeout"] = TIMEOUTS.MOVEMENT;
-    ["PreCoreAction"] = Ad.go_home;
     ["CoreAction"] = function(PetModel, CancelToken)
       local StrollerUnique = Ad:get_default_stroller_unique()
       if not StrollerUnique then return end
@@ -389,7 +395,6 @@ local AilmentActions = {
   [AILMENTS.WALK] = NewAilmentAction {
     ["AilmentName"] = AILMENTS.WALK;
     ["DefaultTimeout"] = TIMEOUTS.MOVEMENT;
-    ["PreCoreAction"] = Ad.go_home;
     ["CoreAction"] = function(PetModel, CancelToken)
       -- Hold the pet
       local HoldSuccess, HoldError = pcall(function()
