@@ -185,28 +185,28 @@ local AilmentActions = {
   [AILMENTS.BORED] = NewAilmentAction {
     ["AilmentName"] = AILMENTS.BORED;
     ["DefaultTimeout"] = TIMEOUTS.LOCATION;
-    ["PreCoreAction"] = Ad.go_home;
+    ["PreCoreAction"] = Ad.teleport_to_main_map;
     ["CoreAction"] = function(PetModel, Config)
       local TargetCFrame = GetCFrameFromPathParts(GAME_LOCATIONS.PARK_BORED_TARGET_PATH)
-      Ad:handle_smart_or_teleport_ailment(TargetCFrame, "park", PetModel, Config.AilmentName) 
+      Ad:handle_main_map_ailment(TargetCFrame, PetModel)
     end;
   };
   [AILMENTS.BEACH_PARTY] = NewAilmentAction {
     ["AilmentName"] = AILMENTS.BEACH_PARTY;
     ["DefaultTimeout"] = TIMEOUTS.LOCATION;
-    ["PreCoreAction"] = Ad.go_home;
+    ["PreCoreAction"] = Ad.teleport_to_main_map;
     ["CoreAction"] = function(PetModel, Config)
       local TargetCFrame = GetCFrameFromPathParts(GAME_LOCATIONS.BEACH_PARTY_TARGET_PATH)
-      Ad:handle_smart_or_teleport_ailment(TargetCFrame, "beach", PetModel, Config.AilmentName)
+      Ad:handle_main_map_ailment(TargetCFrame, PetModel)
     end;
   };
   [AILMENTS.CAMPING] = NewAilmentAction {
     ["AilmentName"] = AILMENTS.CAMPING;
     ["DefaultTimeout"] = TIMEOUTS.LOCATION;
-    ["PreCoreAction"] = Ad.go_home;
+    ["PreCoreAction"] = Ad.teleport_to_main_map;
     ["CoreAction"] = function(PetModel, Config)
       local TargetCFrame = GetCFrameFromPathParts(GAME_LOCATIONS.CAMPSITE_ORIGIN_PATH)
-      Ad:handle_smart_or_teleport_ailment(TargetCFrame, "campsite", PetModel, Config.AilmentName)
+      Ad:handle_main_map_ailment(TargetCFrame, PetModel)
     end;
   };
   [AILMENTS.HUNGRY] = NewAilmentAction {
