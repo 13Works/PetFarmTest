@@ -543,7 +543,12 @@ function Ad:initialize_smart_furniture()
 
     task.wait()
 
-    Ad.__api.housing.push_furniture_changes({})
+    local Success, ErrorMessage = pcall(function()
+      Ad.__api.housing.push_furniture_changes({})
+    end)
+    if (not Success) then
+      warn(string.format("InitializeSmartFurniture: Error pushing furniture changes: %s", ErrorMessage or "Unknown error"))
+    end
 
     task.wait()
 
@@ -646,7 +651,12 @@ function Ad:place_sitable_at_cframe(SitableFurnitureObject, TargetCFrame)
     warn(string.format("PlaceSitableAtCFrame: Invalid arguments. SitableFurnitureObject: %s, TargetCFrame: %s", tostring(SitableFurnitureObject), tostring(TargetCFrame)))
     return
   end
-  Ad.__api.housing.push_furniture_changes({{unique = SitableFurnitureObject["name"], cframe = TargetCFrame}})
+  local Success, ErrorMessage = pcall(function()
+    Ad.__api.housing.push_furniture_changes({{unique = SitableFurnitureObject["name"], cframe = TargetCFrame}})
+  end)
+  if (not Success) then
+    warn(string.format("PlaceSitableAtCFrame: Error placing furniture: %s", ErrorMessage or "Unknown error"))
+  end
 end
 
 --[[
@@ -666,7 +676,12 @@ function Ad:use_sitable_at_cframe(SitableFurnitureObject, TargetCFrame, PetModel
     SeatToUse = SitableFurnitureObject["vacant_seat"]["Name"]
   end
 
-  Ad.__api.housing.activate_furniture(LocalPlayer, SitableFurnitureObject["name"], SeatToUse, {["cframe"] = TargetCFrame}, PetModel)
+  local Success, ErrorMessage = pcall(function()
+    Ad.__api.housing.activate_furniture(LocalPlayer, SitableFurnitureObject["name"], SeatToUse, {["cframe"] = TargetCFrame}, PetModel)
+  end)
+  if (not Success) then
+    warn(string.format("UseSitableAtCFrame: Error activating furniture: %s", ErrorMessage or "Unknown error"))
+  end
 end
 
 --[[
@@ -681,14 +696,25 @@ function Ad:place_and_use_sitable_at_cframe(SitableFurnitureObject, TargetCFrame
     return
   end
 
+  local Success, ErrorMessage = pcall(function()
+    Ad.__api.housing.push_furniture_changes({{unique = SitableFurnitureObject["name"], cframe = TargetCFrame}})
+  end)
+  if (not Success) then
+    warn(string.format("PlaceAndUseSitableAtCFrame: Error placing furniture: %s", ErrorMessage or "Unknown error"))
+  end
+
   task.wait()
 
   local SeatToUse = "UseBlock"
   if (SitableFurnitureObject["vacant_seat"] and SitableFurnitureObject["vacant_seat"]["Name"]) then
     SeatToUse = SitableFurnitureObject["vacant_seat"]["Name"]
   end
-
-  Ad.__api.housing.activate_furniture(LocalPlayer, SitableFurnitureObject["name"], SeatToUse, {["cframe"] = TargetCFrame}, PetModel)
+  local Success, ErrorMessage = pcall(function()
+    Ad.__api.housing.activate_furniture(LocalPlayer, SitableFurnitureObject["name"], SeatToUse, {["cframe"] = TargetCFrame}, PetModel)
+  end)
+  if (not Success) then
+    warn(string.format("PlaceAndUseSitableAtCFrame: Error activating furniture: %s", ErrorMessage or "Unknown error"))
+  end
 end
 
 --[[
@@ -714,12 +740,12 @@ function Ad:use_sitable_at_character_cframe(SitableFurnitureObject, PetModel)
   end
 
   warn(string.format("UseSitableAtCharacterCFrame: Activating furniture '%s' (Seat: '%s') at player CFrame for Pet: '%s'", SitableFurnitureObject["name"], SeatToUse, PetModel["Name"]))
-  print("    DEBUG: Furniture name: ", SitableFurnitureObject["name"])
-  print("    DEBUG: Seat to use: ", SeatToUse)
-  print("    DEBUG: Target CFrame: ", TargetCFrame)
-  print("    DEBUG: Pet model: ", PetModel["Name"])
-  print("    DEBUG: API method: ", Ad.__api.housing.activate_furniture)
-  Ad.__api.housing.activate_furniture(LocalPlayer, SitableFurnitureObject["name"], SeatToUse, {["cframe"] = TargetCFrame}, PetModel)
+  local Success, ErrorMessage = pcall(function()
+    Ad.__api.housing.activate_furniture(LocalPlayer, SitableFurnitureObject["name"], SeatToUse, {["cframe"] = TargetCFrame}, PetModel)
+  end)
+  if (not Success) then
+    warn(string.format("UseSitableAtCharacterCFrame: Error activating furniture: %s", ErrorMessage or "Unknown error"))
+  end
 end
 
 --[[
@@ -1178,10 +1204,16 @@ end
 ]]
 function Ad:go_home()
   print("Ad:go_home() Attempting to go home")
-  Ad.__api.pet.exit_furniture_use_states()
-  Ad.__api.housing.subscribe_to_house(LocalPlayer)
-  Ad.__api.location.set_location("housing", LocalPlayer)
-  Ad.__api.housing.push_furniture_changes({})
+  local Success, ErrorMessage = pcall(function()
+    Ad.__api.pet.exit_furniture_use_states()
+    Ad.__api.housing.subscribe_to_house(LocalPlayer)
+    Ad.__api.location.set_location("housing", LocalPlayer)
+    Ad.__api.housing.push_furniture_changes({})
+  end)
+  if (not Success) then
+    warn(string.format("Ad:go_home() Error: %s", ErrorMessage or "Unknown error"))
+    return false
+  end
   print("Ad:go_home() Successfully went home")
   return true
 end
