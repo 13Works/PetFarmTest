@@ -1229,7 +1229,7 @@ function Ad:setup_safety_platforms()
   CreatePlatformIfMissing("SafetyPlatform_Home_" .. LocalPlayer.Name, HomeFloorTopPosition)
 end
 
-local IgnoreGoHome = true
+local IgnoreGoHome = false
 --[[
   Teleports the local player to their home by subscribing to their house and setting their location.
   @return boolean -- true if the process was initiated, false if failed
