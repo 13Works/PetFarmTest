@@ -132,9 +132,6 @@ local AilmentActions = {
     ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          if next(Ad.SmartFurnitureMap) == nil then
-            Ad:initialize_smart_furniture()
-          end
           local Bowl = Ad.SmartFurnitureMap["hungry"]
           if Bowl then
             Ad:place_and_use_sitable_at_cframe(Bowl, TargetCFrame, PetModel)
@@ -202,9 +199,6 @@ local AilmentActions = {
     ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          if next(Ad.SmartFurnitureMap) == nil then
-            Ad:initialize_smart_furniture()
-          end
           local Bowl = Ad.SmartFurnitureMap["thirsty"]
           if Bowl then
             Ad:place_and_use_sitable_at_cframe(Bowl, TargetCFrame, PetModel)
@@ -450,11 +444,11 @@ local AilmentActions = {
           end
 
           if FurnitureItem then
-            warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            
             if Ad:is_sitable_owned(FurnitureItem) then
+              warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
               Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
             else
+              warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: FurnitureItem is not owned. Attempting to use FurnitureItem '%s' (Model: %s) at Character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
               Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
             end
           else
@@ -538,11 +532,12 @@ local AilmentActions = {
           end
 
           if FurnitureItem then
-            warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
             
             if Ad:is_sitable_owned(FurnitureItem) then
+              warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
               Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
             else
+              warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: FurnitureItem is not owned. Attempting to use FurnitureItem '%s' (Model: %s) at Character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
               Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
             end
           else
@@ -692,11 +687,11 @@ local AilmentActions = {
           end
 
           if FurnitureItem then
-            warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            
             if Ad:is_sitable_owned(FurnitureItem) then
+              warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
               Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
             else
+              warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: FurnitureItem is not owned. Attempting to use FurnitureItem '%s' (Model: %s) at Character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
               Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
             end
           else
@@ -863,34 +858,33 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
           ActionToExecute = AllAilmentActions["sick"].Smart
         end
       else
-        if TaskData["type"] == "location" or TaskData["type"] == "instant" or TaskData["type"] == "remaining" then
-          if AilmentNameForAction then
-            local FoundAction = AllAilmentActions[AilmentNameForAction]
-            if FoundAction then 
-              ActionToExecute = FoundAction
-              if AilmentNameForAction == "sleepy" or AilmentNameForAction == "dirty" or AilmentNameForAction == "toilet" then
-                ActionRequiresTargetCFrame = true
-              end
-            end
+        if TaskData["type"] == "location_bonus" then
+          if AilmentNameForAction and type(AllAilmentActions[AilmentNameForAction]) == "table" then
+            ActionToExecute = AllAilmentActions[AilmentNameForAction].Smart
+            ActionRequiresTargetCFrame = true
           end
-        elseif TaskData["type"] == "location_bonus" then 
-          if AilmentNameForAction then
-            local FoundAction = AllAilmentActions[AilmentNameForAction]
-            if FoundAction and type(FoundAction) == "table" then 
-              ActionToExecute = FoundAction 
-              ActionRequiresTargetCFrame = true 
-            elseif FoundAction then 
-              ActionToExecute = FoundAction
-            end
+        elseif TaskData["type"] == "location" or TaskData["type"] == "instant" or TaskData["type"] == "remaining" then
+          if AilmentNameForAction and type(AllAilmentActions[AilmentNameForAction]) == "table" then
+            ActionToExecute = AllAilmentActions[AilmentNameForAction].Standard
+          elseif AilmentNameForAction then
+            ActionToExecute = AllAilmentActions[AilmentNameForAction]
           end
-        else 
-          AilmentNameForAction = TaskData["ailment"] or TaskData["description"] 
+        else
+          -- fallback for other types
           if AilmentNameForAction then
-            local FoundAction = AllAilmentActions[AilmentNameForAction]
-            if FoundAction then
-              ActionToExecute = FoundAction
-            end
+            ActionToExecute = AllAilmentActions[AilmentNameForAction]
           end
+        end
+      end
+
+      if TaskData["type"] == "location" or TaskData["type"] == "location_bonus" then
+        if next(Ad.SmartFurnitureMap) == nil then
+          Ad:initialize_smart_furniture()
+        end
+        -- print the SmartFurnitureMap
+        print("    DEBUG: SmartFurnitureMap contents:")
+        for Key, Value in Ad.SmartFurnitureMap do
+          print(string.format("      %s: %s", Key, Value["name"]))
         end
       end
 
