@@ -714,7 +714,11 @@ function Ad:use_sitable_at_character_cframe(SitableFurnitureObject, PetModel)
   end
 
   warn(string.format("UseSitableAtCharacterCFrame: Activating furniture '%s' (Seat: '%s') at player CFrame for Pet: '%s'", SitableFurnitureObject["name"], SeatToUse, PetModel["Name"]))
-
+  print("    DEBUG: Furniture name: ", SitableFurnitureObject["name"])
+  print("    DEBUG: Seat to use: ", SeatToUse)
+  print("    DEBUG: Target CFrame: ", TargetCFrame)
+  print("    DEBUG: Pet model: ", PetModel["Name"])
+  print("    DEBUG: API method: ", Ad.__api.housing.activate_furniture)
   Ad.__api.housing.activate_furniture(LocalPlayer, SitableFurnitureObject["name"], SeatToUse, {["cframe"] = TargetCFrame}, PetModel)
 end
 
