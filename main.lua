@@ -397,18 +397,15 @@ local AilmentActions = {
     ["Standard"] = function(PetModel, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          local FurnitureItem = Ad.SmartFurnitureMap["sleepy"]
+          local FurnitureItem = Ad:retrieve_smart_furniture("sleepy", true, true)
+
           if not FurnitureItem then
-            warn("PetFarmOfficial.AilmentActions.sleepy.Standard: SmartFurnitureMap does NOT have 'sleepy' entry. Trying FindFirstAilmentFurniture.")
-            FurnitureItem = Ad:find_first_ailment_furniture("sleepy")
+            warn("PetFarmOfficial.AilmentActions.sleepy.Standard: No suitable smart or generic owned crib/bed found.")
+            return
           end
 
-          if FurnitureItem then
-            warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
-          else
-            warn("PetFarmOfficial.AilmentActions.sleepy.Standard: No suitable smart or generic owned crib/bed found.")
-          end
+          warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
+          Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
         end
 
         if WaitForCompletion then
@@ -423,7 +420,10 @@ local AilmentActions = {
             print(string.format("PetFarmOfficial.AilmentActions.sleepy.Standard: %s", ResultMessage))
           end
         else
-          if not Ad:verify_ailment_exists(PetModel, "sleepy") then return end
+          if not Ad:verify_ailment_exists(PetModel, "sleepy") then 
+            print(string.format("AilmentActions.sleepy.Standard: Ailment '%s' not present for pet '%s' before action.", "sleepy", Ad:get_pet_unique_id_string(PetModel)))
+            return
+          end
           local ActionSuccess, ActionError = pcall(CoreActionLambda)
           if not ActionSuccess then
             warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Standard: Error during non-awaited execution: %s", tostring(ActionError)))
@@ -437,22 +437,19 @@ local AilmentActions = {
     ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          local FurnitureItem = Ad.SmartFurnitureMap["sleepy"]
+          local FurnitureItem = Ad:retrieve_smart_furniture("sleepy", true, true)
+
           if not FurnitureItem then
-            warn("PetFarmOfficial.AilmentActions.sleepy.Smart: SmartFurnitureMap does NOT have 'sleepy' entry. Trying FindFirstAilmentFurniture.")
-            FurnitureItem = Ad:find_first_ailment_furniture("sleepy")
+            warn("PetFarmOfficial.AilmentActions.sleepy.Smart: No suitable smart or generic owned crib/bed found.")
+            return
           end
 
-          if FurnitureItem then
-            if Ad:is_sitable_owned(FurnitureItem) then
-              warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-              Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
-            else
-              warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: FurnitureItem is not owned. Attempting to use FurnitureItem '%s' (Model: %s) at Character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-              Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
-            end
+          if Ad:is_sitable_owned(FurnitureItem) then
+            warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
+            Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
           else
-            warn("PetFarmOfficial.AilmentActions.sleepy.Smart: No suitable smart or generic owned crib/bed found.")
+            warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: FurnitureItem is not owned. Attempting to use FurnitureItem '%s' (Model: %s) at Character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
+            Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
           end
         end
 
@@ -468,7 +465,10 @@ local AilmentActions = {
             print(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: %s", ResultMessage))
           end
         else
-          if not Ad:verify_ailment_exists(PetModel, "sleepy") then return end
+          if not Ad:verify_ailment_exists(PetModel, "sleepy") then 
+            print(string.format("AilmentActions.sleepy.Smart: Ailment '%s' not present for pet '%s' before action.", "sleepy", Ad:get_pet_unique_id_string(PetModel)))
+            return
+          end
           local ActionSuccess, ActionError = pcall(CoreActionLambda)
           if not ActionSuccess then
             warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: Error during non-awaited execution: %s", tostring(ActionError)))
@@ -485,18 +485,15 @@ local AilmentActions = {
     ["Standard"] = function(PetModel, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          local FurnitureItem = Ad.SmartFurnitureMap["dirty"]
+          local FurnitureItem = Ad:retrieve_smart_furniture("dirty", true, true)
+
           if not FurnitureItem then
-            warn("PetFarmOfficial.AilmentActions.dirty.Standard: SmartFurnitureMap does NOT have 'dirty' entry. Trying FindFirstAilmentFurniture.")
-            FurnitureItem = Ad:find_first_ailment_furniture("dirty")
+            warn("PetFarmOfficial.AilmentActions.dirty.Standard: No suitable smart or generic owned shower/bath found.")
+            return
           end
 
-          if FurnitureItem then
-            warn(string.format("PetFarmOfficial.AilmentActions.dirty.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
-          else
-            warn("PetFarmOfficial.AilmentActions.dirty.Standard: No suitable smart or generic owned shower/bath found.")
-          end
+          warn(string.format("PetFarmOfficial.AilmentActions.dirty.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
+          Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
         end
 
         if WaitForCompletion then
@@ -511,7 +508,10 @@ local AilmentActions = {
             print(string.format("PetFarmOfficial.AilmentActions.dirty.Standard: %s", ResultMessage))
           end
         else
-          if not Ad:verify_ailment_exists(PetModel, "dirty") then return end
+          if not Ad:verify_ailment_exists(PetModel, "dirty") then 
+            print(string.format("AilmentActions.dirty.Standard: Ailment '%s' not present for pet '%s' before action.", "dirty", Ad:get_pet_unique_id_string(PetModel)))
+            return
+          end
           local ActionSuccess, ActionError = pcall(CoreActionLambda)
           if not ActionSuccess then
             warn(string.format("PetFarmOfficial.AilmentActions.dirty.Standard: Error during non-awaited execution: %s", tostring(ActionError)))
@@ -525,23 +525,19 @@ local AilmentActions = {
     ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          local FurnitureItem = Ad.SmartFurnitureMap["dirty"]
+          local FurnitureItem = Ad:retrieve_smart_furniture("dirty", true, true)
+
           if not FurnitureItem then
-            warn("PetFarmOfficial.AilmentActions.dirty.Smart: SmartFurnitureMap does NOT have 'dirty' entry. Trying FindFirstAilmentFurniture.")
-            FurnitureItem = Ad:find_first_ailment_furniture("dirty")
+            warn("PetFarmOfficial.AilmentActions.dirty.Smart: No suitable smart or generic owned shower/bath found.")
+            return
           end
 
-          if FurnitureItem then
-            
-            if Ad:is_sitable_owned(FurnitureItem) then
-              warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-              Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
-            else
-              warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: FurnitureItem is not owned. Attempting to use FurnitureItem '%s' (Model: %s) at Character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-              Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
-            end
+          if Ad:is_sitable_owned(FurnitureItem) then
+            warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
+            Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
           else
-            warn("PetFarmOfficial.AilmentActions.dirty.Smart: No suitable smart or generic owned shower/bath found.")
+            warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: FurnitureItem is not owned. Attempting to use FurnitureItem '%s' (Model: %s) at Character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
+            Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
           end
         end
 
@@ -557,7 +553,10 @@ local AilmentActions = {
             print(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: %s", ResultMessage))
           end
         else
-          if not Ad:verify_ailment_exists(PetModel, "dirty") then return end
+          if not Ad:verify_ailment_exists(PetModel, "dirty") then 
+            print(string.format("AilmentActions.dirty.Smart: Ailment '%s' not present for pet '%s' before action.", "dirty", Ad:get_pet_unique_id_string(PetModel)))
+            return
+          end
           local ActionSuccess, ActionError = pcall(CoreActionLambda)
           if not ActionSuccess then
             warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: Error during non-awaited execution: %s", tostring(ActionError)))
@@ -625,21 +624,22 @@ local AilmentActions = {
     ["Standard"] = function(PetModel, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          local FurnitureItem = Ad.SmartFurnitureMap["toilet"]
+          local FurnitureItem = Ad:retrieve_smart_furniture("toilet", true, true)
+
           if not FurnitureItem then
-            warn("PetFarmOfficial.AilmentActions.toilet.Standard: SmartFurnitureMap does NOT have 'toilet' entry. Trying FindFirstAilmentFurniture.")
-            FurnitureItem = Ad:find_first_ailment_furniture("toilet")
+            warn("PetFarmOfficial.AilmentActions.toilet.Standard: No suitable smart or generic owned toilet/litter box found.")
+            return
           end
 
-          if FurnitureItem then
-            warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
-          else
-            warn("PetFarmOfficial.AilmentActions.toilet.Standard: No suitable smart or generic owned toilet/litter box found.")
-          end
+          warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
+          Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
         end
 
         if WaitForCompletion then
+          if not Ad:verify_ailment_exists(PetModel, "toilet") then 
+            print(string.format("AilmentActions.toilet.Standard: Ailment '%s' not present for pet '%s' before action.", "toilet", Ad:get_pet_unique_id_string(PetModel)))
+            return
+          end
           local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "toilet", 30, nil, CoreActionLambda)
           if not DidAilmentClear then
             warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: %s", ResultMessage))
@@ -647,30 +647,14 @@ local AilmentActions = {
             print(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: %s", ResultMessage))
           end
         else
-          local CoreActionLambda = function()
-            local FurnitureItem = Ad.SmartFurnitureMap["toilet"]
-            if not FurnitureItem then
-              warn("PetFarmOfficial.AilmentActions.toilet.Standard: SmartFurnitureMap does NOT have 'toilet' entry. Trying FindFirstAilmentFurniture.")
-              FurnitureItem = Ad:find_first_ailment_furniture("toilet")
-            end
-
-            if FurnitureItem then
-              warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-              if Ad:is_sitable_owned(FurnitureItem) then
-                local TargetCFrame = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.CFrame
-                if TargetCFrame then
-                  Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
-                else
-                  warn("No valid CFrame for player.")
-                end
-              else
-                Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
-              end
-            else
-              warn("PetFarmOfficial.AilmentActions.toilet.Standard: No suitable smart or generic owned toilet/litter box found.")
-            end
+          if not Ad:verify_ailment_exists(PetModel, "toilet") then 
+            print(string.format("AilmentActions.toilet.Standard: Ailment '%s' not present for pet '%s' before action.", "toilet", Ad:get_pet_unique_id_string(PetModel)))
+            return
           end
-          task.spawn(CoreActionLambda)
+          local ActionSuccess, ActionError = pcall(CoreActionLambda)
+          if not ActionSuccess then
+            warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: Error during non-awaited execution: %s", tostring(ActionError)))
+          end
         end
       end)
       if not OuterPcallSuccess then
@@ -680,22 +664,19 @@ local AilmentActions = {
     ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
-          local FurnitureItem = Ad.SmartFurnitureMap["toilet"]
+          local FurnitureItem = Ad:retrieve_smart_furniture("toilet", true, true)
+
           if not FurnitureItem then
-            warn("PetFarmOfficial.AilmentActions.toilet.Smart: SmartFurnitureMap does NOT have 'toilet' entry. Trying FindFirstAilmentFurniture.")
-            FurnitureItem = Ad:find_first_ailment_furniture("toilet")
+            warn("PetFarmOfficial.AilmentActions.toilet.Smart: No suitable smart or generic owned toilet/litter box found.")
+            return
           end
 
-          if FurnitureItem then
-            if Ad:is_sitable_owned(FurnitureItem) then
-              warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-              Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
-            else
-              warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: FurnitureItem is not owned. Attempting to use FurnitureItem '%s' (Model: %s) at Character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-              Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
-            end
+          if Ad:is_sitable_owned(FurnitureItem) then
+            warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
+            Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
           else
-            warn("PetFarmOfficial.AilmentActions.toilet.Smart: No suitable smart or generic owned toilet/litter box found.")
+            warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: FurnitureItem is not owned. Attempting to use FurnitureItem '%s' (Model: %s) at Character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
+            Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
           end
         end
 
@@ -711,7 +692,10 @@ local AilmentActions = {
             print(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: %s", ResultMessage))
           end
         else
-          if not Ad:verify_ailment_exists(PetModel, "toilet") then return end
+          if not Ad:verify_ailment_exists(PetModel, "toilet") then 
+            print(string.format("AilmentActions.toilet.Smart: Ailment '%s' not present for pet '%s' before action.", "toilet", Ad:get_pet_unique_id_string(PetModel)))
+            return
+          end
           local ActionSuccess, ActionError = pcall(CoreActionLambda)
           if not ActionSuccess then
             warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: Error during non-awaited execution: %s", tostring(ActionError)))
