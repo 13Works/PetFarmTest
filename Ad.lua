@@ -77,7 +77,7 @@ do -- Initialize API
     };
     ["pet"] = {
       ["exit_furniture_use_states"] = function()
-        API["PetAPI/ExitFurnitureUseStates"]:FireServer()
+        API["PetAPI/ExitFurnitureUseStates"]:InvokeServer()
       end
     };
     ["shop"] = {
