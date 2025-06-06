@@ -14,6 +14,7 @@ local AilmentActions = {
   ["bored"] = function(PetModel, WaitForCompletion)
     local OuterPcallSuccess, ErrorMessage = pcall(function()
       local CoreActionLambda = function()
+        Ad:go_home()
         local TargetCFrame = workspace["StaticMap"]["Park"]["BoredAilmentTarget"]["CFrame"]
         Ad:handle_smart_or_teleport_ailment(TargetCFrame, "park", PetModel, "bored") 
       end
@@ -42,6 +43,7 @@ local AilmentActions = {
   ["beach_party"] = function(PetModel, WaitForCompletion)
     local OuterPcallSuccess, ErrorMessage = pcall(function()
       local CoreActionLambda = function()
+        Ad:go_home()
         local AilmentTargetCFrame = workspace["StaticMap"]["Beach"]["BeachPartyAilmentTarget"]["CFrame"]
         Ad:handle_smart_or_teleport_ailment(AilmentTargetCFrame, "beach", PetModel, "beach_party")
       end
@@ -70,6 +72,7 @@ local AilmentActions = {
   ["camping"] = function(PetModel, WaitForCompletion)
     local OuterPcallSuccess, ErrorMessage = pcall(function()
       local CoreActionLambda = function()
+        Ad:go_home()
         local AilmentTargetCFrame = workspace["StaticMap"]["Campsite"]["CampsiteOrigin"]["CFrame"]
         Ad:handle_smart_or_teleport_ailment(AilmentTargetCFrame, "campsite", PetModel, "camping")
       end
@@ -263,6 +266,7 @@ local AilmentActions = {
             warn(string.format("PetFarmOfficial.AilmentActions.sick.Smart: Error during non-awaited execution: %s", tostring(ActionError)))
           end
         end
+        Ad:go_home()
       end)
       if not OuterPcallSuccess then
         warn(string.format("Error setting up or invoking 'sick.Smart' ailment action: %s", ErrorMessage or "Unknown error"))
@@ -323,6 +327,7 @@ local AilmentActions = {
           warn(string.format("PetFarmOfficial.AilmentActions.salon: Error during non-awaited execution: %s", tostring(ActionError)))
         end
       end
+      Ad:go_home()
     end)
 
     if not OuterPcallSuccess then
@@ -354,6 +359,7 @@ local AilmentActions = {
           warn(string.format("PetFarmOfficial.AilmentActions.school: Error during non-awaited execution: %s", tostring(ActionError)))
         end
       end
+      Ad:go_home()
     end)
 
     if not OuterPcallSuccess then
@@ -385,6 +391,7 @@ local AilmentActions = {
           warn(string.format("PetFarmOfficial.AilmentActions.pizza_party: Error during non-awaited execution: %s", tostring(ActionError)))
         end
       end
+      Ad:go_home()
     end)
 
     if not OuterPcallSuccess then
