@@ -10,907 +10,416 @@ local Ad = loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/P
 local TaskPlanner = loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/TaskPlanner.lua"), true))()
 local PlanFormatter = loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/PlanFormatter.lua"), true))()
 
-local AilmentActions = {
-  ["bored"] = function(PetModel, WaitForCompletion)
-    local OuterPcallSuccess, ErrorMessage = pcall(function()
-      local CoreActionLambda = function()
-        local Success = Ad:go_home()
-        if not Success then
-          warn("Error going home in 'bored' ailment action.")
-          return
-        end
-        local TargetCFrame = workspace["StaticMap"]["Park"]["BoredAilmentTarget"]["CFrame"]
-        Ad:handle_smart_or_teleport_ailment(TargetCFrame, "park", PetModel, "bored") 
-      end
+local AILMENTS = {
+  ["BORED"] = "bored", ["BEACH_PARTY"] = "beach_party", ["CAMPING"] = "camping", 
+  ["DIRTY"] = "dirty", ["HUNGRY"] = "hungry", ["SICK"] = "sick", 
+  ["SLEEPY"] = "sleepy", ["SALON"] = "salon", ["SCHOOL"] = "school", 
+  ["PIZZA_PARTY"] = "pizza_party", ["THIRSTY"] = "thirsty", ["PLAY"] = "play",
+  ["TOILET"] = "toilet", ["RIDE"] = "ride", ["WALK"] = "walk"
+}
+local TIMEOUTS = {["DEFAULT"] = 50, ["CONSUMABLE"] = 25, ["INTERACTION"] = 30, ["LOCATION"] = 50}
+local ITEMS = {["FOOD"] = "teachers_apple", ["DRINK"] = "water", ["HEALING"] = "healing_apple"}
+local FURNITURE_IDS = {["DOCTOR_INTERACTION"] = "f-14"}
+local GAME_LOCATIONS = {
+  ["PARK_BORED_TARGET_PATH"] = {"StaticMap", "Park", "BoredAilmentTarget"},
+  ["BEACH_PARTY_TARGET_PATH"] = {"StaticMap", "Beach", "BeachPartyAilmentTarget"},
+  ["CAMPSITE_ORIGIN_PATH"] = {"StaticMap", "Campsite", "CampsiteOrigin"},
+}
+local MISC_STRINGS = {["PET_OBJECT_CREATOR_TYPE"] = "__Enum_PetObjectCreatorType_1", ["THROW_TOY_REACTION"] = "ThrowToyReaction"}
 
-      if WaitForCompletion then
-        if not Ad:verify_ailment_exists(PetModel, "bored") then 
-          print(string.format("AilmentActions.bored: Ailment '%s' not present for pet '%s' before action.", "bored", Ad:get_pet_unique_id_string(PetModel)))
-          return
-        end
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "bored", 40, nil, CoreActionLambda)
-        if not DidAilmentClear then
-          warn(string.format("PetFarmOfficial.AilmentActions.bored: %s", ResultMessage))
-        else
-          print(string.format("PetFarmOfficial.AilmentActions.bored: %s", ResultMessage))
-        end
-      else
-        if not Ad:verify_ailment_exists(PetModel, "bored") then return end 
-        task.spawn(CoreActionLambda)
-      end
-    end)
+local function GetCFrameFromPathParts(PathParts)
+  local CurrentObject = workspace
 
-    if not OuterPcallSuccess then 
-      warn(string.format("Error setting up or invoking 'bored' ailment action: %s", ErrorMessage or "Unknown error"))
+  for _, PartName in PathParts do
+    CurrentObject = CurrentObject:FindFirstChild(PartName)
+    if not CurrentObject then
+      warn(string.format("GetCFrameFromPathParts: Could not find %s at %s", table.concat(PathParts, "."), PartName))
+      return nil
     end
-  end;
-  ["beach_party"] = function(PetModel, WaitForCompletion)
-    local OuterPcallSuccess, ErrorMessage = pcall(function()
-      local CoreActionLambda = function()
-        local Success = Ad:go_home()
-        if not Success then
-          warn("Error going home in 'beach_party' ailment action.")
-          return
-        end
-        local AilmentTargetCFrame = workspace["StaticMap"]["Beach"]["BeachPartyAilmentTarget"]["CFrame"]
-        Ad:handle_smart_or_teleport_ailment(AilmentTargetCFrame, "beach", PetModel, "beach_party")
-      end
+  end
 
-      if WaitForCompletion then
-        if not Ad:verify_ailment_exists(PetModel, "beach_party") then 
-          print(string.format("AilmentActions.beach_party: Ailment '%s' not present for pet '%s' before action.", "beach_party", Ad:get_pet_unique_id_string(PetModel)))
-          return
-        end
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "beach_party", 40, nil, CoreActionLambda)
-        if not DidAilmentClear then
-          warn(string.format("PetFarmOfficial.AilmentActions.beach_party: %s", ResultMessage))
-        else
-          print(string.format("PetFarmOfficial.AilmentActions.beach_party: %s", ResultMessage))
-        end
-      else
-        if not Ad:verify_ailment_exists(PetModel, "beach_party") then return end
-        task.spawn(CoreActionLambda)
-      end
-    end)
+  return CurrentObject and CurrentObject.CFrame
+end
 
-    if not OuterPcallSuccess then 
-      warn(string.format("Error setting up or invoking 'beach_party' ailment action: %s", ErrorMessage or "Unknown error"))
+local function NewAilmentAction(Config)
+  -- Expected Config fields:
+  -- AilmentName (string, required): The canonical name of the ailment.
+  -- ActionType (string, optional): e.g., "Standard", "Smart". Used for logging.
+  -- CoreAction (function(PetModel, TargetCFrame_or_nil), required): The unique logic for this action.
+  -- RequiresTargetCFrame (boolean, default false): If true, expects TargetCFrame as the first arg after PetModel.
+  -- DefaultTimeout (number, default TIMEOUTS.DEFAULT): Timeout for Ad:execute_action_with_timeout.
+  -- PreCoreAction (function(PetModel) -> boolean, optional): Runs before CoreAction. If it returns false, CoreAction is skipped.
+  -- PostExecutionAction (function(PetModel), optional): Runs after WaitForCompletion logic or non-awaited initiation.
+  -- OnTimeoutFailure (function(PetModel), optional): Callback if Ad:execute_action_with_timeout fails.
+  -- NonAwaitedExecutionType (string, "spawn" or "pcall", default "pcall"): How to run CoreAction if not WaitForCompletion.
+
+  local ActionFullName = Config.AilmentName
+  if Config.ActionType then
+    ActionFullName = Config.AilmentName .. "." .. Config.ActionType
+  end
+
+  return function(PetModel, ...)
+    local Args = { ... }
+    local WaitForCompletion
+    local TargetCFrame
+
+    if Config.RequiresTargetCFrame then
+      TargetCFrame = Args[1]
+      WaitForCompletion = Args[2]
+      if TargetCFrame == nil and WaitForCompletion == nil and #Args == 1 and typeof(Args[1]) == "boolean" then
+        -- Smart action called without TargetCFrame, but with WaitForCompletion
+        warn(string.format("AilmentActions.%s: Called as Smart action but TargetCFrame might be missing. Assuming WaitForCompletion is arg1.", ActionFullName))
+        WaitForCompletion = Args[1]
+        TargetCFrame = nil -- Explicitly nil, CoreAction must handle
+      elseif TargetCFrame == nil and Config.RequiresTargetCFrame then
+        warn(string.format("AilmentActions.%s: TargetCFrame is required but not provided or is nil.", ActionFullName))
+        -- Depending on strictness, you might return here or let CoreAction handle nil TargetCFrame
+      end
+    else
+      WaitForCompletion = Args[1]
     end
-  end;
-  ["camping"] = function(PetModel, WaitForCompletion)
-    local OuterPcallSuccess, ErrorMessage = pcall(function()
-      local CoreActionLambda = function()
-        local Success = Ad:go_home()
-        if not Success then
-          warn("Error going home in 'camping' ailment action.")
-          return
-        end
-        local AilmentTargetCFrame = workspace["StaticMap"]["Campsite"]["CampsiteOrigin"]["CFrame"]
-        Ad:handle_smart_or_teleport_ailment(AilmentTargetCFrame, "campsite", PetModel, "camping")
-      end
 
-      if WaitForCompletion then
-        if not Ad:verify_ailment_exists(PetModel, "camping") then 
-          print(string.format("AilmentActions.camping: Ailment '%s' not present for pet '%s' before action.", "camping", Ad:get_pet_unique_id_string(PetModel)))
-          return 
-        end
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "camping", 40, nil, CoreActionLambda)
-        if not DidAilmentClear then
-          warn(string.format("PetFarmOfficial.AilmentActions.camping: %s", ResultMessage))
-        else
-          print(string.format("PetFarmOfficial.AilmentActions.camping: %s", ResultMessage))
-        end
-      else
-        if not Ad:verify_ailment_exists(PetModel, "camping") then return end
-        task.spawn(CoreActionLambda)
-      end
-    end)
-
-    if not OuterPcallSuccess then 
-      warn(string.format("Error setting up or invoking 'camping' ailment action: %s", ErrorMessage or "Unknown error"))
-    end
-  end;
-
-  ["hungry"] = {
-    ["Standard"] = function(PetModel, WaitForCompletion)
-      local OuterPcallSuccess, ErrorMessage = pcall(function()
-        local CoreActionLambda = function()
-          Ad:purchase_and_consume_item(PetModel, "teachers_apple")
-        end
-
-        if WaitForCompletion then
-          if not Ad:verify_ailment_exists(PetModel, "hungry") then 
-            print(string.format("AilmentActions.hungry.Standard: Ailment '%s' not present for pet '%s' before action.", "hungry", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "hungry", 25, nil, CoreActionLambda)
-          if not DidAilmentClear then
-            warn(string.format("PetFarmOfficial.AilmentActions.hungry.Standard: %s", ResultMessage))
-          else
-            print(string.format("PetFarmOfficial.AilmentActions.hungry.Standard: %s", ResultMessage))
-          end
-        else
-          if not Ad:verify_ailment_exists(PetModel, "hungry") then return end
-          local ActionSuccess, ActionError = pcall(CoreActionLambda)
-          if not ActionSuccess then
-            warn(string.format("PetFarmOfficial.AilmentActions.hungry.Standard: Error during non-awaited execution: %s", tostring(ActionError)))
-          end
-        end
-      end)
-      if not OuterPcallSuccess then
-        warn(string.format("Error setting up or invoking 'hungry.Standard' ailment action: %s", ErrorMessage or "Unknown error"))
-      end
-    end; 
-    ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
-      local OuterPcallSuccess, ErrorMessage = pcall(function()
-        local CoreActionLambda = function()
-          local Bowl = Ad.SmartFurnitureMap["hungry"]
-          if Bowl then
-            Ad:place_and_use_sitable_at_cframe(Bowl, TargetCFrame, PetModel)
-          else
-            warn("PetFarmOfficial.AilmentActions.hungry.Smart: Smart food bowl not available. Consider falling back to Standard or checking configuration.")
-          end
-        end
-
-        if WaitForCompletion then
-          if not Ad:verify_ailment_exists(PetModel, "hungry") then 
-            print(string.format("AilmentActions.hungry.Smart: Ailment '%s' not present for pet '%s' before action.", "hungry", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "hungry", 25, nil, CoreActionLambda)
-          if not DidAilmentClear then
-            warn(string.format("PetFarmOfficial.AilmentActions.hungry.Smart: %s", ResultMessage))
-          else
-            print(string.format("PetFarmOfficial.AilmentActions.hungry.Smart: %s", ResultMessage))
-          end
-        else
-          if not Ad:verify_ailment_exists(PetModel, "hungry") then return end
-          local ActionSuccess, ActionError = pcall(CoreActionLambda)
-          if not ActionSuccess then
-            warn(string.format("PetFarmOfficial.AilmentActions.hungry.Smart: Error during non-awaited execution: %s", tostring(ActionError)))
-          end
-        end
-      end)
-
-      if not OuterPcallSuccess then
-        warn(string.format("Error setting up or invoking 'hungry.Smart' ailment action: %s", ErrorMessage or "Unknown error"))
-      end
-    end;
-  };
-
-  ["thirsty"] = {
-    ["Standard"] = function(PetModel, WaitForCompletion)
-      local OuterPcallSuccess, ErrorMessage = pcall(function()
-        local CoreActionLambda = function()
-          Ad:purchase_and_consume_item(PetModel, "water")
-        end
-
-        if WaitForCompletion then
-          if not Ad:verify_ailment_exists(PetModel, "thirsty") then 
-            print(string.format("AilmentActions.thirsty.Standard: Ailment '%s' not present for pet '%s' before action.", "thirsty", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "thirsty", 25, nil, CoreActionLambda)
-          if not DidAilmentClear then
-            warn(string.format("PetFarmOfficial.AilmentActions.thirsty.Standard: %s", ResultMessage))
-          else
-            print(string.format("PetFarmOfficial.AilmentActions.thirsty.Standard: %s", ResultMessage))
-          end
-        else
-          if not Ad:verify_ailment_exists(PetModel, "thirsty") then return end
-          local ActionSuccess, ActionError = pcall(CoreActionLambda)
-          if not ActionSuccess then
-            warn(string.format("PetFarmOfficial.AilmentActions.thirsty.Standard: Error during non-awaited execution: %s", tostring(ActionError)))
-          end
-        end
-      end)
-      if not OuterPcallSuccess then
-        warn(string.format("Error setting up or invoking 'thirsty.Standard' ailment action: %s", ErrorMessage or "Unknown error"))
-      end
-    end;
-    ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
-      local OuterPcallSuccess, ErrorMessage = pcall(function()
-        local CoreActionLambda = function()
-          local Bowl = Ad.SmartFurnitureMap["thirsty"]
-          if Bowl then
-            Ad:place_and_use_sitable_at_cframe(Bowl, TargetCFrame, PetModel)
-          else
-            warn("PetFarmOfficial.AilmentActions.thirsty.Smart: Smart water bowl not available. Consider falling back to Standard or checking configuration.")
-          end
-        end
-
-        if WaitForCompletion then
-          if not Ad:verify_ailment_exists(PetModel, "thirsty") then 
-            print(string.format("AilmentActions.thirsty.Smart: Ailment '%s' not present for pet '%s' before action.", "thirsty", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "thirsty", 25, nil, CoreActionLambda)
-          if not DidAilmentClear then
-            warn(string.format("PetFarmOfficial.AilmentActions.thirsty.Smart: %s", ResultMessage))
-          else
-            print(string.format("PetFarmOfficial.AilmentActions.thirsty.Smart: %s", ResultMessage))
-          end
-        else
-          if not Ad:verify_ailment_exists(PetModel, "thirsty") then return end
-          local ActionSuccess, ActionError = pcall(CoreActionLambda)
-          if not ActionSuccess then
-            warn(string.format("PetFarmOfficial.AilmentActions.thirsty.Smart: Error during non-awaited execution: %s", tostring(ActionError)))
-          end
-        end
-      end)
-      if not OuterPcallSuccess then
-        warn(string.format("Error setting up or invoking 'thirsty.Smart' ailment action: %s", ErrorMessage or "Unknown error"))
-      end
-    end;
-  };
-
-  ["sick"] = {
-    ["Smart"] = function(PetModel, WaitForCompletion)
-      local OuterPcallSuccess, ErrorMessage = pcall(function()
-        local CoreActionLambda = function()
-          Ad:teleport_to_ailment_location("Hospital")
-          task.wait(1)
-          Ad.__api.housing.activate_interior_furniture("f-14", "UseBlock", "Yes", LocalPlayer.Character)
-        end
-
-        if WaitForCompletion then
-          if not Ad:verify_ailment_exists(PetModel, "sick") then
-            print(string.format("AilmentActions.sick.Smart: Ailment '%s' not present for pet '%s' before action.", "sick", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "sick", 30, nil, CoreActionLambda)
-          if not DidAilmentClear then
-            warn(string.format("PetFarmOfficial.AilmentActions.sick.Smart: %s", ResultMessage))
-            Ad._SickSmartFailed = true
-          else
-            print(string.format("PetFarmOfficial.AilmentActions.sick.Smart: %s", ResultMessage))
-          end
-        else
-          if not Ad:verify_ailment_exists(PetModel, "sick") then return end
-          local ActionSuccess, ActionError = pcall(CoreActionLambda)
-          if not ActionSuccess then
-            warn(string.format("PetFarmOfficial.AilmentActions.sick.Smart: Error during non-awaited execution: %s", tostring(ActionError)))
-          end
-        end
-        Ad:go_home()
-      end)
-      if not OuterPcallSuccess then
-        warn(string.format("Error setting up or invoking 'sick.Smart' ailment action: %s", ErrorMessage or "Unknown error"))
-      end
-    end;
-    ["Standard"] = function(PetModel, WaitForCompletion)
-      local OuterPcallSuccess, ErrorMessage = pcall(function()
-        local CoreActionLambda = function()
-          Ad:purchase_and_consume_item(PetModel, "healing_apple")
-        end
-
-        if WaitForCompletion then
-          if not Ad:verify_ailment_exists(PetModel, "sick") then
-            print(string.format("AilmentActions.sick.Standard: Ailment '%s' not present for pet '%s' before action.", "sick", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "sick", 30, nil, CoreActionLambda)
-          if not DidAilmentClear then
-            warn(string.format("PetFarmOfficial.AilmentActions.sick.Standard: %s", ResultMessage))
-          else
-            print(string.format("PetFarmOfficial.AilmentActions.sick.Standard: %s", ResultMessage))
-          end
-        else
-          if not Ad:verify_ailment_exists(PetModel, "sick") then return end
-          local ActionSuccess, ActionError = pcall(CoreActionLambda)
-          if not ActionSuccess then
-            warn(string.format("PetFarmOfficial.AilmentActions.sick.Standard: Error during non-awaited execution: %s", tostring(ActionError)))
-          end
-        end
-      end)
-      if not OuterPcallSuccess then
-        warn(string.format("Error setting up or invoking 'sick.Standard' ailment action: %s", ErrorMessage or "Unknown error"))
-      end
-    end;
-  };
-
-  ["salon"] = function(PetModel, WaitForCompletion)
-    local OuterPcallSuccess, ErrorMessage = pcall(function()
-      local CoreActionLambda = function()
-        Ad:teleport_to_ailment_location("Salon")
-      end
-
-      if WaitForCompletion then
-        if not Ad:verify_ailment_exists(PetModel, "salon") then 
-          print(string.format("AilmentActions.salon: Ailment '%s' not present for pet '%s' before action.", "salon", Ad:get_pet_unique_id_string(PetModel)))
-          return
-        end
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "salon", 40, nil, CoreActionLambda)
-        if not DidAilmentClear then
-          warn(string.format("PetFarmOfficial.AilmentActions.salon: %s", ResultMessage))
-        else
-          print(string.format("PetFarmOfficial.AilmentActions.salon: %s", ResultMessage))
-        end
-      else
-        if not Ad:verify_ailment_exists(PetModel, "salon") then return end
-        local ActionSuccess, ActionError = pcall(CoreActionLambda)
-        if not ActionSuccess then
-          warn(string.format("PetFarmOfficial.AilmentActions.salon: Error during non-awaited execution: %s", tostring(ActionError)))
-        end
-      end
-      Ad:go_home()
-    end)
-
-    if not OuterPcallSuccess then
-      warn(string.format("Error setting up or invoking 'salon' ailment action: %s", ErrorMessage or "Unknown error"))
-    end
-  end;
-
-  ["school"] = function(PetModel, WaitForCompletion)
-    local OuterPcallSuccess, ErrorMessage = pcall(function()
-      local CoreActionLambda = function()
-        Ad:teleport_to_ailment_location("School")
-      end
-
-      if WaitForCompletion then
-        if not Ad:verify_ailment_exists(PetModel, "school") then 
-          print(string.format("AilmentActions.school: Ailment '%s' not present for pet '%s' before action.", "school", Ad:get_pet_unique_id_string(PetModel)))
-          return
-        end
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "school", 40, nil, CoreActionLambda)
-        if not DidAilmentClear then
-          warn(string.format("PetFarmOfficial.AilmentActions.school: %s", ResultMessage))
-        else
-          print(string.format("PetFarmOfficial.AilmentActions.school: %s", ResultMessage))
-        end
-      else
-        if not Ad:verify_ailment_exists(PetModel, "school") then return end
-        local ActionSuccess, ActionError = pcall(CoreActionLambda)
-        if not ActionSuccess then
-          warn(string.format("PetFarmOfficial.AilmentActions.school: Error during non-awaited execution: %s", tostring(ActionError)))
-        end
-      end
-      Ad:go_home()
-    end)
-
-    if not OuterPcallSuccess then
-      warn(string.format("Error setting up or invoking 'school' ailment action: %s", ErrorMessage or "Unknown error"))
-    end
-  end;
-
-  ["pizza_party"] = function(PetModel, WaitForCompletion)
-    local OuterPcallSuccess, ErrorMessage = pcall(function()
-      local CoreActionLambda = function()
-        Ad:teleport_to_ailment_location("PizzaShop") 
-      end
-
-      if WaitForCompletion then
-        if not Ad:verify_ailment_exists(PetModel, "pizza_party") then 
-          print(string.format("AilmentActions.pizza_party: Ailment '%s' not present for pet '%s' before action.", "pizza_party", Ad:get_pet_unique_id_string(PetModel)))
-          return
-        end
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "pizza_party", 40, nil, CoreActionLambda)
-        if not DidAilmentClear then
-          warn(string.format("PetFarmOfficial.AilmentActions.pizza_party: %s", ResultMessage))
-        else
-          print(string.format("PetFarmOfficial.AilmentActions.pizza_party: %s", ResultMessage))
-        end
-      else
-        if not Ad:verify_ailment_exists(PetModel, "pizza_party") then return end
-        local ActionSuccess, ActionError = pcall(CoreActionLambda)
-        if not ActionSuccess then
-          warn(string.format("PetFarmOfficial.AilmentActions.pizza_party: Error during non-awaited execution: %s", tostring(ActionError)))
-        end
-      end
-      Ad:go_home()
-    end)
-
-    if not OuterPcallSuccess then
-      warn(string.format("Error setting up or invoking 'pizza_party' ailment action: %s", ErrorMessage or "Unknown error"))
-    end
-  end;
-
-  ["sleepy"] = {
-    ["Standard"] = function(PetModel, WaitForCompletion)
-      local OuterPcallSuccess, ErrorMessage = pcall(function()
-        local CoreActionLambda = function()
-          local Success = Ad:go_home()
-          if not Success then
-            warn("Error going home in 'sleepy' ailment action.")
-            return
-          end
-          local FurnitureItem = Ad:retrieve_smart_furniture("sleepy", true, true)
-          print("DEBUG: FurnitureItem:", FurnitureItem)
-          print("DEBUG: FurnitureItem.model:", FurnitureItem["model"], (typeof(FurnitureItem["model"]) == "Instance" and FurnitureItem["model"]["Name"]) or "N/A")
-          print("DEBUG: FurnitureItem.vacant_seat:", FurnitureItem["vacant_seat"])
-          print("DEBUG: FurnitureItem.name:", FurnitureItem["name"])
-
-          print("DEBUG: PetModel:", PetModel, (typeof(PetModel) == "Instance" and PetModel["Name"]) or "N/A")
-
-          if not FurnitureItem then
-            warn("PetFarmOfficial.AilmentActions.sleepy.Standard: No suitable smart or generic owned crib/bed found.")
-            return
-          end
-
-          warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-          Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
-        end
-
-        if WaitForCompletion then
-          if not Ad:verify_ailment_exists(PetModel, "sleepy") then 
-            print(string.format("AilmentActions.sleepy.Standard: Ailment '%s' not present for pet '%s' before action.", "sleepy", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "sleepy", 30, nil, CoreActionLambda)
-          if not DidAilmentClear then
-            warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Standard: %s", ResultMessage))
-          else
-            print(string.format("PetFarmOfficial.AilmentActions.sleepy.Standard: %s", ResultMessage))
-          end
-        else
-          if not Ad:verify_ailment_exists(PetModel, "sleepy") then 
-            print(string.format("AilmentActions.sleepy.Standard: Ailment '%s' not present for pet '%s' before action.", "sleepy", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local ActionSuccess, ActionError = pcall(CoreActionLambda)
-          if not ActionSuccess then
-            warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Standard: Error during non-awaited execution: %s", tostring(ActionError)))
-          end
-        end
-      end)
-      if not OuterPcallSuccess then
-        warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Standard: Error: %s", ErrorMessage or "Unknown error"))
-      end
-    end;
-    ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
-      local OuterPcallSuccess, ErrorMessage = pcall(function()
-        local CoreActionLambda = function()
-          local FurnitureItem = Ad:retrieve_smart_furniture("sleepy", true, true)
-          print("DEBUG: FurnitureItem:", FurnitureItem)
-          print("DEBUG: FurnitureItem.model:", FurnitureItem["model"], (typeof(FurnitureItem["model"]) == "Instance" and FurnitureItem["model"]["Name"]) or "N/A")
-          print("DEBUG: FurnitureItem.vacant_seat:", FurnitureItem["vacant_seat"])
-          print("DEBUG: FurnitureItem.name:", FurnitureItem["name"])
-
-          print("DEBUG: PetModel:", PetModel, (typeof(PetModel) == "Instance" and PetModel["Name"]) or "N/A")
-
-          if not FurnitureItem then
-            warn("PetFarmOfficial.AilmentActions.sleepy.Smart: No suitable smart or generic owned crib/bed found.")
-            return
-          end
-
-          if Ad:is_sitable_owned(FurnitureItem) then
-            warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
-          else
-            warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: FurnitureItem is not owned. Attempting to use FurnitureItem '%s' (Model: %s) at Character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
-          end
-        end
-
-        if WaitForCompletion then
-          if not Ad:verify_ailment_exists(PetModel, "sleepy") then 
-            print(string.format("AilmentActions.sleepy.Smart: Ailment '%s' not present for pet '%s' before action.", "sleepy", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "sleepy", 30, nil, CoreActionLambda)
-          if not DidAilmentClear then
-            warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: %s", ResultMessage))
-          else
-            print(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: %s", ResultMessage))
-          end
-        else
-          if not Ad:verify_ailment_exists(PetModel, "sleepy") then 
-            print(string.format("AilmentActions.sleepy.Smart: Ailment '%s' not present for pet '%s' before action.", "sleepy", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local ActionSuccess, ActionError = pcall(CoreActionLambda)
-          if not ActionSuccess then
-            warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: Error during non-awaited execution: %s", tostring(ActionError)))
-          end
-        end
-      end)
-      if not OuterPcallSuccess then
-        warn(string.format("PetFarmOfficial.AilmentActions.sleepy.Smart: Error: %s", ErrorMessage or "Unknown error"))
-      end
-    end;
-  };
-
-  ["dirty"] = {
-    ["Standard"] = function(PetModel, WaitForCompletion)
-      local OuterPcallSuccess, ErrorMessage = pcall(function()
-        local CoreActionLambda = function()
-          local Success = Ad:go_home()
-          if not Success then
-            warn("Error going home in 'dirty' ailment action.")
-            return
-          end
-          local FurnitureItem = Ad:retrieve_smart_furniture("dirty", true, true)
-          print("DEBUG: FurnitureItem:", FurnitureItem)
-          print("DEBUG: FurnitureItem.model:", FurnitureItem["model"], (typeof(FurnitureItem["model"]) == "Instance" and FurnitureItem["model"]["Name"]) or "N/A")
-          print("DEBUG: FurnitureItem.vacant_seat:", FurnitureItem["vacant_seat"])
-          print("DEBUG: FurnitureItem.name:", FurnitureItem["name"])
-
-          print("DEBUG: PetModel:", PetModel, (typeof(PetModel) == "Instance" and PetModel["Name"]) or "N/A")
-
-          if not FurnitureItem then
-            warn("PetFarmOfficial.AilmentActions.dirty.Standard: No suitable smart or generic owned shower/bath found.")
-            return
-          end
-
-          warn(string.format("PetFarmOfficial.AilmentActions.dirty.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-          Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
-        end
-
-        if WaitForCompletion then
-          if not Ad:verify_ailment_exists(PetModel, "dirty") then 
-            print(string.format("AilmentActions.dirty.Standard: Ailment '%s' not present for pet '%s' before action.", "dirty", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "dirty", 30, nil, CoreActionLambda)
-          if not DidAilmentClear then
-            warn(string.format("PetFarmOfficial.AilmentActions.dirty.Standard: %s", ResultMessage))
-          else
-            print(string.format("PetFarmOfficial.AilmentActions.dirty.Standard: %s", ResultMessage))
-          end
-        else
-          if not Ad:verify_ailment_exists(PetModel, "dirty") then 
-            print(string.format("AilmentActions.dirty.Standard: Ailment '%s' not present for pet '%s' before action.", "dirty", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local ActionSuccess, ActionError = pcall(CoreActionLambda)
-          if not ActionSuccess then
-            warn(string.format("PetFarmOfficial.AilmentActions.dirty.Standard: Error during non-awaited execution: %s", tostring(ActionError)))
-          end
-        end
-      end)
-      if not OuterPcallSuccess then
-        warn(string.format("PetFarmOfficial.AilmentActions.dirty.Standard: Error: %s", ErrorMessage or "Unknown error"))
-      end
-    end;
-    ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
-      local OuterPcallSuccess, ErrorMessage = pcall(function()
-        local CoreActionLambda = function()
-          local FurnitureItem = Ad:retrieve_smart_furniture("dirty", true, true)
-          print("DEBUG: FurnitureItem:", FurnitureItem)
-          print("DEBUG: FurnitureItem.model:", FurnitureItem["model"], (typeof(FurnitureItem["model"]) == "Instance" and FurnitureItem["model"]["Name"]) or "N/A")
-          print("DEBUG: FurnitureItem.vacant_seat:", FurnitureItem["vacant_seat"])
-          print("DEBUG: FurnitureItem.name:", FurnitureItem["name"])
-
-          print("DEBUG: PetModel:", PetModel, (typeof(PetModel) == "Instance" and PetModel["Name"]) or "N/A")
-
-          if not FurnitureItem then
-            warn("PetFarmOfficial.AilmentActions.dirty.Smart: No suitable smart or generic owned shower/bath found.")
-            return
-          end
-
-          if Ad:is_sitable_owned(FurnitureItem) then
-            warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
-          else
-            warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: FurnitureItem is not owned. Attempting to use FurnitureItem '%s' (Model: %s) at Character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
-          end
-        end
-
-        if WaitForCompletion then
-          if not Ad:verify_ailment_exists(PetModel, "dirty") then 
-            print(string.format("AilmentActions.dirty.Smart: Ailment '%s' not present for pet '%s' before action.", "dirty", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "dirty", 30, nil, CoreActionLambda)
-          if not DidAilmentClear then
-            warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: %s", ResultMessage))
-          else
-            print(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: %s", ResultMessage))
-          end
-        else
-          if not Ad:verify_ailment_exists(PetModel, "dirty") then 
-            print(string.format("AilmentActions.dirty.Smart: Ailment '%s' not present for pet '%s' before action.", "dirty", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local ActionSuccess, ActionError = pcall(CoreActionLambda)
-          if not ActionSuccess then
-            warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: Error during non-awaited execution: %s", tostring(ActionError)))
-          end
-        end
-      end)
-      if not OuterPcallSuccess then
-        warn(string.format("PetFarmOfficial.AilmentActions.dirty.Smart: Error: %s", ErrorMessage or "Unknown error"))
-      end
-    end;
-  };
-
-  ["play"] = function(PetModel, WaitForCompletion)
-    local OuterPcallSuccess, ErrorMessage = pcall(function()
-      local CoreActionLambda = function()
-        local ToyUnique = Ad:get_default_throw_toy_unique()
-        if not ToyUnique then return end
-        -- Throw the toy every 4 seconds until the task is complete
-        while Ad:verify_ailment_exists(PetModel, "play") do
-          local Success, Result = pcall(function()
-            Ad.__api.pet_object.create_pet_object(
-              "__Enum_PetObjectCreatorType_1", 
-              {
-                ["reaction_name"] = "ThrowToyReaction", 
-                ["unique_id"] = ToyUnique
-              }
-            )
+    local OuterPcallSuccess, OuterErrorMessage = pcall(function()
+      local CompleteCoreLogic = function()
+        if Config.PreCoreAction then
+          local PreSuccess, PreResult = pcall(function()
+            return Config.PreCoreAction(PetModel)
           end)
-          if not Success then
-            warn("AilmentActions.play: Failed to throw toy:", Result)
+          if not PreSuccess then
+            warn(string.format("PetFarmOfficial.AilmentActions.%s: Error in PreCoreAction: %s", ActionFullName, PreResult))
+            return false
           end
-          for _ = 1, 40 do -- Wait up to 4 seconds, but break early if task is done
-            if not Ad:verify_ailment_exists(PetModel, "play") then break end
-            task.wait(0.1)
+          if PreResult == false then
+            warn(string.format("PetFarmOfficial.AilmentActions.%s: PreCoreAction indicated failure to proceed.", ActionFullName))
+            return false
           end
         end
-        -- Unequip the toy after the task is complete
-        local UnequipSuccess, UnequipResult = pcall(function()
-          Ad.__api.tool.unequip(ToyUnique, {["use_sound_delay"] = false, ["equip_as_last"] = false})
+
+        local CoreArgs = { PetModel }
+        if Config.RequiresTargetCFrame then
+          table.insert(CoreArgs, TargetCFrame)
+        end
+
+        local CoreSuccess, CoreResult = pcall(function()
+          -- Pass PetModel, then TargetCFrame (if applicable), then Config
+          local FinalCoreArgs = {}
+          for _, Arg in ipairs(CoreArgs) do table.insert(FinalCoreArgs, Arg) end
+          table.insert(FinalCoreArgs, Config) -- Add Config as the last argument
+          return Config.CoreAction(table.unpack(FinalCoreArgs))
         end)
-        if not UnequipSuccess then
-          warn("AilmentActions.play: Failed to unequip toy:", UnequipResult)
+        if not CoreSuccess then
+          warn(string.format("PetFarmOfficial.AilmentActions.%s: Error in CoreAction: %s", ActionFullName, CoreResult))
+          return false
         end
+        return CoreResult ~= false -- Propagate explicit 'false' from CoreAction, else true
       end
+
       if WaitForCompletion then
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "play", 40, nil, CoreActionLambda)
+        if not Ad:verify_ailment_exists(PetModel, Config.AilmentName) then
+          print(string.format("AilmentActions.%s: Ailment '%s' not present for pet '%s' before action.", ActionFullName, Config.AilmentName, Ad:get_pet_unique_id_string(PetModel)))
+          return
+        end
+
+        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(
+          PetModel,
+          Config.AilmentName,
+          Config.DefaultTimeout or TIMEOUTS.DEFAULT,
+          nil,
+          CompleteCoreLogic
+        )
+
         if not DidAilmentClear then
-          warn(string.format("PetFarmOfficial.AilmentActions.play: %s", ResultMessage))
+          warn(string.format("PetFarmOfficial.AilmentActions.%s: %s", ActionFullName, ResultMessage))
+          if Config.OnTimeoutFailure then
+            Config.OnTimeoutFailure(PetModel)
+          end
         else
-          print(string.format("PetFarmOfficial.AilmentActions.play: %s", ResultMessage))
+          print(string.format("PetFarmOfficial.AilmentActions.%s: %s", ActionFullName, ResultMessage))
         end
       else
-        local ActionSuccess, ActionError = pcall(CoreActionLambda)
-        if not ActionSuccess then
-          warn(string.format("PetFarmOfficial.AilmentActions.play: Error during non-awaited execution: %s", tostring(ActionError)))
+        if not Ad:verify_ailment_exists(PetModel, Config.AilmentName) then
+          print(string.format("AilmentActions.%s: Ailment '%s' not present for pet '%s' before non-awaited action.", ActionFullName, Config.AilmentName, Ad:get_pet_unique_id_string(PetModel)))
+          return
+        end
+
+        local ExecutionType = Config.NonAwaitedExecutionType or "pcall"
+        if ExecutionType == "spawn" then
+          task.spawn(CompleteCoreLogic)
+        else
+          local Success, Result = pcall(CompleteCoreLogic)
+          if not Success then
+            warn(string.format("PetFarmOfficial.AilmentActions.%s: Error during non-awaited pcall execution: %s", ActionFullName, tostring(Result)))
+          elseif Result == false then
+            warn(string.format("PetFarmOfficial.AilmentActions.%s: Non-awaited pcall execution indicated failure.", ActionFullName))
+          end
+        end
+      end
+
+      if Config.PostExecutionAction then
+        local PostSuccess, PostErr = pcall(function()
+          Config.PostExecutionAction(PetModel)
+        end)
+        if not PostSuccess then
+          warn(string.format("PetFarmOfficial.AilmentActions.%s: Error in PostExecutionAction: %s", ActionFullName, PostErr))
         end
       end
     end)
+
     if not OuterPcallSuccess then
-      warn(string.format("Error setting up or invoking 'play' ailment action: %s", ErrorMessage or "Unknown error"))
+      warn(string.format("Error setting up or invoking '%s' ailment action: %s", ActionFullName, OuterErrorMessage or "Unknown error"))
     end
-  end;
+  end
+end
 
-  ["toilet"] = {
-    ["Standard"] = function(PetModel, WaitForCompletion)
-      local OuterPcallSuccess, ErrorMessage = pcall(function()
-        local CoreActionLambda = function()
-          local Success = Ad:go_home()
-          if not Success then
-            warn("Error going home in 'toilet' ailment action.")
-            return
-          end
-          local FurnitureItem = Ad:retrieve_smart_furniture("toilet", true, true)
-          print("DEBUG: FurnitureItem:", FurnitureItem)
-          print("DEBUG: FurnitureItem.model:", FurnitureItem["model"], (typeof(FurnitureItem["model"]) == "Instance" and FurnitureItem["model"]["Name"]) or "N/A")
-          print("DEBUG: FurnitureItem.vacant_seat:", FurnitureItem["vacant_seat"])
-          print("DEBUG: FurnitureItem.name:", FurnitureItem["name"])
+local function FurnitureCoreAction(PetModel, Config)
+  local FurnitureItem = Ad:retrieve_smart_furniture(Config.AilmentName, true, true)
+  if not FurnitureItem then
+    warn(string.format("PetFarmOfficial.AilmentActions.%s: No suitable furniture asset found for ailment: %s", Config.AilmentName, Config.AilmentName))
+    return
+  end
+  warn(string.format("PetFarmOfficial.AilmentActions.%s: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", Config.AilmentName, FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
+  Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
+end
 
-          print("DEBUG: PetModel:", PetModel, (typeof(PetModel) == "Instance" and PetModel["Name"]) or "N/A")
-
-          if not FurnitureItem then
-            warn("PetFarmOfficial.AilmentActions.toilet.Standard: No suitable smart or generic owned toilet/litter box found.")
-            return
-          end
-
-          warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-          Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
-        end
-
-        if WaitForCompletion then
-          if not Ad:verify_ailment_exists(PetModel, "toilet") then 
-            print(string.format("AilmentActions.toilet.Standard: Ailment '%s' not present for pet '%s' before action.", "toilet", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "toilet", 30, nil, CoreActionLambda)
-          if not DidAilmentClear then
-            warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: %s", ResultMessage))
-          else
-            print(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: %s", ResultMessage))
-          end
-        else
-          if not Ad:verify_ailment_exists(PetModel, "toilet") then 
-            print(string.format("AilmentActions.toilet.Standard: Ailment '%s' not present for pet '%s' before action.", "toilet", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local ActionSuccess, ActionError = pcall(CoreActionLambda)
-          if not ActionSuccess then
-            warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: Error during non-awaited execution: %s", tostring(ActionError)))
-          end
-        end
-      end)
-      if not OuterPcallSuccess then
-        warn(string.format("PetFarmOfficial.AilmentActions.toilet.Standard: Error: %s", ErrorMessage or "Unknown error"))
-      end
-    end;
-    ["Smart"] = function(PetModel, TargetCFrame, WaitForCompletion)
-      local OuterPcallSuccess, ErrorMessage = pcall(function()
-        local CoreActionLambda = function()
-          local FurnitureItem = Ad:retrieve_smart_furniture("toilet", true, true)
-          print("DEBUG: FurnitureItem:", FurnitureItem)
-          print("DEBUG: FurnitureItem.model:", FurnitureItem["model"], (typeof(FurnitureItem["model"]) == "Instance" and FurnitureItem["model"]["Name"]) or "N/A")
-          print("DEBUG: FurnitureItem.vacant_seat:", FurnitureItem["vacant_seat"])
-          print("DEBUG: FurnitureItem.name:", FurnitureItem["name"])
-
-          print("DEBUG: PetModel:", PetModel, (typeof(PetModel) == "Instance" and PetModel["Name"]) or "N/A")
-
-          if not FurnitureItem then
-            warn("PetFarmOfficial.AilmentActions.toilet.Smart: No suitable smart or generic owned toilet/litter box found.")
-            return
-          end
-
-          if Ad:is_sitable_owned(FurnitureItem) then
-            warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: Attempting to place and use FurnitureItem '%s' (Model: %s) at TargetCFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            Ad:place_and_use_sitable_at_cframe(FurnitureItem, TargetCFrame, PetModel)
-          else
-            warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: FurnitureItem is not owned. Attempting to use FurnitureItem '%s' (Model: %s) at Character CFrame.", FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
-            Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
-          end
-        end
-
-        if WaitForCompletion then
-          if not Ad:verify_ailment_exists(PetModel, "toilet") then 
-            print(string.format("AilmentActions.toilet.Smart: Ailment '%s' not present for pet '%s' before action.", "toilet", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "toilet", 30, nil, CoreActionLambda)
-          if not DidAilmentClear then
-            warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: %s", ResultMessage))
-          else
-            print(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: %s", ResultMessage))
-          end
-        else
-          if not Ad:verify_ailment_exists(PetModel, "toilet") then 
-            print(string.format("AilmentActions.toilet.Smart: Ailment '%s' not present for pet '%s' before action.", "toilet", Ad:get_pet_unique_id_string(PetModel)))
-            return
-          end
-          local ActionSuccess, ActionError = pcall(CoreActionLambda)
-          if not ActionSuccess then
-            warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: Error during non-awaited execution: %s", tostring(ActionError)))
-          end
-        end
-      end)
-      if not OuterPcallSuccess then
-        warn(string.format("PetFarmOfficial.AilmentActions.toilet.Smart: Error: %s", ErrorMessage or "Unknown error"))
-      end
+local AilmentActions = {
+  [AILMENTS.BORED] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.BORED;
+    ["DefaultTimeout"] = TIMEOUTS.LOCATION;
+    ["PreCoreAction"] = Ad.go_home;
+    ["CoreAction"] = function(PetModel, Config)
+      local TargetCFrame = GetCFrameFromPathParts(GAME_LOCATIONS.PARK_BORED_TARGET_PATH)
+      Ad:handle_smart_or_teleport_ailment(TargetCFrame, "park", PetModel, Config.AilmentName) 
     end;
   };
-
-  ["ride"] = function(PetModel, WaitForCompletion)
-    local OuterPcallSuccess, ErrorMessage = pcall(function()
-      local CoreActionLambda = function()
-        local StrollerUnique = Ad:get_default_stroller_unique()
-        if not StrollerUnique then return end
-        local EquipSuccess, EquipResult = pcall(function()
-          Ad.__api.tool.equip(StrollerUnique)
+  [AILMENTS.BEACH_PARTY] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.BEACH_PARTY;
+    ["DefaultTimeout"] = TIMEOUTS.LOCATION;
+    ["PreCoreAction"] = Ad.go_home;
+    ["CoreAction"] = function(PetModel, Config)
+      local TargetCFrame = GetCFrameFromPathParts(GAME_LOCATIONS.BEACH_PARTY_TARGET_PATH)
+      Ad:handle_smart_or_teleport_ailment(TargetCFrame, "beach", PetModel, Config.AilmentName)
+    end;
+  };
+  [AILMENTS.CAMPING] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.CAMPING;
+    ["DefaultTimeout"] = TIMEOUTS.LOCATION;
+    ["PreCoreAction"] = Ad.go_home;
+    ["CoreAction"] = function(PetModel, Config)
+      local TargetCFrame = GetCFrameFromPathParts(GAME_LOCATIONS.CAMPSITE_ORIGIN_PATH)
+      Ad:handle_smart_or_teleport_ailment(TargetCFrame, "campsite", PetModel, Config.AilmentName)
+    end;
+  };
+  [AILMENTS.HUNGRY] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.HUNGRY;
+    ["DefaultTimeout"] = TIMEOUTS.CONSUMABLE;
+    ["CoreAction"] = function(PetModel)
+      Ad:purchase_and_consume_item(PetModel, ITEMS.FOOD)
+    end;
+  };
+  [AILMENTS.THIRSTY] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.THIRSTY;
+    ["DefaultTimeout"] = TIMEOUTS.CONSUMABLE;
+    ["CoreAction"] = function(PetModel)
+      Ad:purchase_and_consume_item(PetModel, ITEMS.DRINK)
+    end;
+  };
+  [AILMENTS.SICK] = {
+    ["Smart"] = NewAilmentAction {
+      ["AilmentName"] = AILMENTS.SICK;
+      ["DefaultTimeout"] = TIMEOUTS.INTERACTION;
+      ["ActionType"] = "Smart";
+      ["CoreAction"] = function(PetModel)
+        Ad:teleport_to_ailment_location("Hospital")
+        task.wait(1)
+        Ad.__api.housing.activate_interior_furniture(FURNITURE_IDS.DOCTOR_INTERACTION, "UseBlock", "Yes", LocalPlayer.Character)
+      end;
+    };
+    ["Standard"] = NewAilmentAction {
+      ["AilmentName"] = AILMENTS.SICK;
+      ["DefaultTimeout"] = TIMEOUTS.CONSUMABLE;
+      ["ActionType"] = "Standard";
+      ["CoreAction"] = function(PetModel)
+        Ad:purchase_and_consume_item(PetModel, ITEMS.HEALING)
+      end;
+    };
+  };
+  [AILMENTS.SALON] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.SALON;
+    ["DefaultTimeout"] = TIMEOUTS.LOCATION;
+    ["CoreAction"] = function(PetModel)
+      Ad:teleport_to_ailment_location("Salon")
+    end;
+  };
+  [AILMENTS.SCHOOL] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.SCHOOL;
+    ["DefaultTimeout"] = TIMEOUTS.LOCATION;
+    ["CoreAction"] = function(PetModel)
+      Ad:teleport_to_ailment_location("School")
+    end;
+  };
+  [AILMENTS.PIZZA_PARTY] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.PIZZA_PARTY;
+    ["DefaultTimeout"] = TIMEOUTS.LOCATION;
+    ["CoreAction"] = function(PetModel)
+      Ad:teleport_to_ailment_location("PizzaShop")
+    end;
+  };
+  [AILMENTS.SLEEPY] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.SLEEPY;
+    ["DefaultTimeout"] = TIMEOUTS.INTERACTION;
+    ["CoreAction"] = FurnitureCoreAction;
+  };
+  [AILMENTS.DIRTY] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.DIRTY;
+    ["DefaultTimeout"] = TIMEOUTS.INTERACTION;
+    ["CoreAction"] = FurnitureCoreAction;
+  };
+  [AILMENTS.TOILET] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.TOILET;
+    ["DefaultTimeout"] = TIMEOUTS.INTERACTION;
+    ["CoreAction"] = FurnitureCoreAction;
+  };
+  [AILMENTS.PLAY] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.PLAY;
+    ["DefaultTimeout"] = TIMEOUTS.INTERACTION;
+    ["CoreAction"] = function(PetModel)
+      local ToyUnique = Ad:get_default_throw_toy_unique()
+      if not ToyUnique then return end
+      -- Throw the toy every 4 seconds until the task is complete
+      while Ad:verify_ailment_exists(PetModel, "play") do
+        local Success, Result = pcall(function()
+          Ad.__api.pet_object.create_pet_object(
+            MISC_STRINGS.PET_OBJECT_CREATOR_TYPE, 
+            {
+              ["reaction_name"] = MISC_STRINGS.THROW_TOY_REACTION, 
+              ["unique_id"] = ToyUnique
+            }
+          )
         end)
-        if not EquipSuccess then
-          warn("AilmentActions.ride: Failed to equip stroller:", EquipResult)
-          return
+        if not Success then
+          warn("AilmentActions.play: Failed to throw toy:", Result)
         end
-        -- Wait for the stroller tool to appear in the player's character
-        local Character = LocalPlayer.Character
-        local StrollerTool = nil
-        for _ = 1, 40 do -- up to 4 seconds
-          StrollerTool = Character and Character:FindFirstChild("StrollerTool")
-          if StrollerTool then break end
+        for _ = 1, 40 do -- Wait up to 4 seconds, but break early if task is done
+          if not Ad:verify_ailment_exists(PetModel, "play") then break end
           task.wait(0.1)
         end
-        if not StrollerTool then
-          warn("AilmentActions.ride: StrollerTool not found in character after equip.")
-          return
-        end
-        local ModelHandle = StrollerTool:FindFirstChild("ModelHandle")
-        if not ModelHandle then
-          warn("AilmentActions.ride: ModelHandle not found in StrollerTool.")
-          return
-        end
-        local TouchToSits = ModelHandle:FindFirstChild("TouchToSits")
-        if not TouchToSits then
-          warn("AilmentActions.ride: TouchToSits not found in ModelHandle.")
-          return
-        end
-        local TouchToSit = nil
-        for _, obj in TouchToSits:GetChildren() do
-          if obj.Name == "TouchToSit" then
-            TouchToSit = obj
-            break
-          end
-        end
-        if not TouchToSit then
-          warn("AilmentActions.ride: No TouchToSit found in TouchToSits.")
-          return
-        end
-        local UseSuccess, UseResult = pcall(function()
-          Ad.__api.adopt.use_stroller(LocalPlayer, PetModel, TouchToSit)
-        end)
-        if not UseSuccess then
-          warn("AilmentActions.ride: Failed to use stroller:", UseResult)
-          return
-        end
-        -- Set humanoid state to jumping until the ride task is over
-        local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
-        if not Humanoid then
-          warn("AilmentActions.ride: Humanoid not found in character.")
-          return
-        end
-        while Ad:verify_ailment_exists(PetModel, "ride") do
-          Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-          task.wait(0.5)
-        end
-        -- Unequip the stroller after the task is complete
-        local UnequipSuccess, UnequipResult = pcall(function()
-          Ad.__api.tool.unequip(StrollerUnique, {["use_sound_delay"] = false, ["equip_as_last"] = false})
-        end)
-        if not UnequipSuccess then
-          warn("AilmentActions.ride: Failed to unequip stroller:", UnequipResult)
+      end
+      -- Unequip the toy after the task is complete
+      local UnequipSuccess, UnequipResult = pcall(function()
+        Ad.__api.tool.unequip(ToyUnique, {["use_sound_delay"] = false, ["equip_as_last"] = false})
+      end)
+      if not UnequipSuccess then
+        warn("AilmentActions.play: Failed to unequip toy:", UnequipResult)
+      end
+    end;
+  };
+  [AILMENTS.RIDE] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.RIDE;
+    ["DefaultTimeout"] = TIMEOUTS.INTERACTION;
+    ["PreCoreAction"] = Ad.go_home;
+    ["CoreAction"] = function(PetModel)
+      local StrollerUnique = Ad:get_default_stroller_unique()
+      if not StrollerUnique then return end
+      local EquipSuccess, EquipResult = pcall(function()
+        Ad.__api.tool.equip(StrollerUnique)
+      end)
+      if not EquipSuccess then
+        warn("AilmentActions.ride: Failed to equip stroller:", EquipResult)
+        return
+      end
+      -- Wait for the stroller tool to appear in the player's character
+      local Character = LocalPlayer.Character
+      local StrollerTool = nil
+      for _ = 1, 40 do -- up to 4 seconds
+        StrollerTool = Character and Character:FindFirstChild("StrollerTool")
+        if StrollerTool then break end
+        task.wait(0.1)
+      end
+      if not StrollerTool then
+        warn("AilmentActions.ride: StrollerTool not found in character after equip.")
+        return
+      end
+      local ModelHandle = StrollerTool:FindFirstChild("ModelHandle")
+      if not ModelHandle then
+        warn("AilmentActions.ride: ModelHandle not found in StrollerTool.")
+        return
+      end
+      local TouchToSits = ModelHandle:FindFirstChild("TouchToSits")
+      if not TouchToSits then
+        warn("AilmentActions.ride: TouchToSits not found in ModelHandle.")
+        return
+      end
+      local TouchToSit = nil
+      for _, obj in TouchToSits:GetChildren() do
+        if obj.Name == "TouchToSit" then
+          TouchToSit = obj
+          break
         end
       end
-      if WaitForCompletion then
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "ride", 40, nil, CoreActionLambda)
-        if not DidAilmentClear then
-          warn(string.format("PetFarmOfficial.AilmentActions.ride: %s", ResultMessage))
-        else
-          print(string.format("PetFarmOfficial.AilmentActions.ride: %s", ResultMessage))
-        end
-      else
-        local ActionSuccess, ActionError = pcall(CoreActionLambda)
-        if not ActionSuccess then
-          warn(string.format("PetFarmOfficial.AilmentActions.ride: Error during non-awaited execution: %s", tostring(ActionError)))
-        end
+      if not TouchToSit then
+        warn("AilmentActions.ride: No TouchToSit found in TouchToSits.")
+        return
       end
-    end)
-    if not OuterPcallSuccess then
-      warn(string.format("Error setting up or invoking 'ride' ailment action: %s", ErrorMessage or "Unknown error"))
-    end
-  end;
-
-  ["walk"] = function(PetModel, WaitForCompletion)
-    local OuterPcallSuccess, ErrorMessage = pcall(function()
-      local CoreActionLambda = function()
-        -- Hold the pet
-        local HoldSuccess, HoldError = pcall(function()
-          Ad.__api.adopt.hold_baby(PetModel)
-        end)
-        if not HoldSuccess then
-          warn("AilmentActions.walk: Failed to hold pet:", HoldError)
-          return
-        end
-        -- Wait for the walk ailment to clear
-        local Character = LocalPlayer.Character
-        local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
-        if not Humanoid then
-          warn("AilmentActions.walk: Humanoid not found in character.")
-          return
-        end
-        while Ad:verify_ailment_exists(PetModel, "walk") do
-          Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-          task.wait(0.5)
-        end
-        -- Drop the pet
-        local EjectSuccess, EjectError = pcall(function()
-          Ad.__api.adopt.eject_baby(PetModel)
-        end)
-        if not EjectSuccess then
-          warn("AilmentActions.walk: Failed to drop pet:", EjectError)
-        end
+      local UseSuccess, UseResult = pcall(function()
+        Ad.__api.adopt.use_stroller(LocalPlayer, PetModel, TouchToSit)
+      end)
+      if not UseSuccess then
+        warn("AilmentActions.ride: Failed to use stroller:", UseResult)
+        return
       end
-      if WaitForCompletion then
-        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "walk", 40, nil, CoreActionLambda)
-        if not DidAilmentClear then
-          warn(string.format("PetFarmOfficial.AilmentActions.walk: %s", ResultMessage))
-        else
-          print(string.format("PetFarmOfficial.AilmentActions.walk: %s", ResultMessage))
-        end
-      else
-        local ActionSuccess, ActionError = pcall(CoreActionLambda)
-        if not ActionSuccess then
-          warn(string.format("PetFarmOfficial.AilmentActions.walk: Error during non-awaited execution: %s", tostring(ActionError)))
-        end
+      -- Set humanoid state to jumping until the ride task is over
+      local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+      if not Humanoid then
+        warn("AilmentActions.ride: Humanoid not found in character.")
+        return
       end
-    end)
-    if not OuterPcallSuccess then
-      warn(string.format("Error setting up or invoking 'walk' ailment action: %s", ErrorMessage or "Unknown error"))
-    end
-  end;
+      while Ad:verify_ailment_exists(PetModel, "ride") do
+        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        task.wait(0.5)
+      end
+      -- Unequip the stroller after the task is complete
+      local UnequipSuccess, UnequipResult = pcall(function()
+        Ad.__api.tool.unequip(StrollerUnique, {["use_sound_delay"] = false, ["equip_as_last"] = false})
+      end)
+      if not UnequipSuccess then
+        warn("AilmentActions.ride: Failed to unequip stroller:", UnequipResult)
+      end
+    end;
+  };
+  [AILMENTS.WALK] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.WALK;
+    ["DefaultTimeout"] = TIMEOUTS.INTERACTION;
+    ["PreCoreAction"] = Ad.go_home;
+    ["CoreAction"] = function(PetModel)
+      -- Hold the pet
+      local HoldSuccess, HoldError = pcall(function()
+        Ad.__api.adopt.hold_baby(PetModel)
+      end)
+      if not HoldSuccess then
+        warn("AilmentActions.walk: Failed to hold pet:", HoldError)
+        return
+      end
+      -- Wait for the walk ailment to clear
+      local Character = LocalPlayer.Character
+      local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+      if not Humanoid then
+        warn("AilmentActions.walk: Humanoid not found in character.")
+        return
+      end
+      while Ad:verify_ailment_exists(PetModel, "walk") do
+        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        task.wait(0.5)
+      end
+      -- Drop the pet
+      local EjectSuccess, EjectError = pcall(function()
+        Ad.__api.adopt.eject_baby(PetModel)
+      end)
+      if not EjectSuccess then
+        warn("AilmentActions.walk: Failed to drop pet:", EjectError)
+      end
+    end;
+  };
 }
-
-
 
 -- [[ FUNCTION TO PROCESS TASK PLAN - TO BE EXPANDED ]] --
 --[[
@@ -921,125 +430,85 @@ local AilmentActions = {
   @param AllAilmentActions table -- The all ailment actions
   @param OriginalAilmentsFlatList table -- The original ailments flat list
 ]]
+-- [[ FUNCTION TO PROCESS TASK PLAN - REVISED ]] --
 local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentActions, OriginalAilmentsFlatList)
   print(string.format("--- Starting Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
-  -- print("    DEBUG: AllAilmentActions keys available at start of ProcessTaskPlan:")
-
-  local ActionKeys = {}
-
-  for Key, _ in AllAilmentActions do 
-    table.insert(ActionKeys, Key) 
-  end 
-
-  if GeneratedPlan and #GeneratedPlan > 0 then
-    print(string.format("  Initial ailments for this plan: [%s]", table.concat(OriginalAilmentsFlatList or {}, ", ")))
-  else
+  if not GeneratedPlan or #GeneratedPlan == 0 then
     print(string.format("ProcessTaskPlan: No tasks in the generated plan for %s. Initial ailments: [%s]", PetUniqueId, table.concat(OriginalAilmentsFlatList or {}, ", ")))
+    print(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
+    return -- Exit early if no plan
   end
 
-  if GeneratedPlan and #GeneratedPlan > 0 then
-    for TaskIndex, TaskData in GeneratedPlan do
-      print(string.format("  [%d/%d] Attempting Task: Type='%s', Ailment/Desc='%s', Time='%s'", 
-        TaskIndex, #GeneratedPlan, TaskData["type"], TaskData["ailment"] or TaskData["description"] or "N/A", tostring(TaskData["time"] or TaskData["adjustedTime"] or 0)))
+  print(string.format("  Initial ailments for this plan: [%s]", table.concat(OriginalAilmentsFlatList or {}, ", ")))
 
-      local ActionToExecute = nil
-      local ActionRequiresTargetCFrame = false
-      local AilmentNameForAction = TaskData["ailment"] 
+  -- Initialize SmartFurnitureMap once if needed
+  if next(Ad.SmartFurnitureMap) == nil then
+    Ad:initialize_smart_furniture()
+  end
 
-      -- Special handling for 'sick' ailment
-      if AilmentNameForAction == "sick" and typeof(AllAilmentActions["sick"]) == "table" then
-        if Ad._SickSmartFailed then
-          ActionToExecute = AllAilmentActions["sick"].Standard
-        else
-          ActionToExecute = AllAilmentActions["sick"].Smart
+  local Running = {}
+  local Completed = {}
+
+  for TaskIndex, TaskData in GeneratedPlan do
+    coroutine.wrap(function()
+      local AilmentName = TaskData.ailment
+      local WaitForAilment = TaskData.wait_for_ailment_completion
+
+      if WaitForAilment then
+        while not Completed[WaitForAilment] do
+          task.wait(0.2)
         end
+      end
+
+      print(string.format("    [Task] Starting: %s (type: %s)", tostring(AilmentName), tostring(TaskData.Type)))
+      local ActionTable = AllAilmentActions[AilmentName]
+      local PotentialAction = typeof(ActionTable) == "table" and ActionTable.Standard or ActionTable
+      if not PotentialAction or typeof(PotentialAction) ~= "function" then
+        warn(string.format("    No executable action function found for ailment '%s' (TaskType: %s). PotentialAction is: %s", AilmentName, TaskData.Type, tostring(PotentialAction)))
+        Completed[AilmentName] = true
+        return
+      end
+
+      local Success, ErrorMessage = pcall(PotentialAction, PetModel, true)
+      if not Success then
+        warn(string.format("    Error executing action '%s': %s", AilmentName, tostring(ErrorMessage)))
       else
-        if TaskData["type"] == "location_bonus" then
-          if AilmentNameForAction and type(AllAilmentActions[AilmentNameForAction]) == "table" then
-            ActionToExecute = AllAilmentActions[AilmentNameForAction].Smart
-            ActionRequiresTargetCFrame = true
-          end
-        elseif TaskData["type"] == "location" or TaskData["type"] == "instant" or TaskData["type"] == "remaining" then
-          if AilmentNameForAction and type(AllAilmentActions[AilmentNameForAction]) == "table" then
-            ActionToExecute = AllAilmentActions[AilmentNameForAction].Standard
-          elseif AilmentNameForAction then
-            ActionToExecute = AllAilmentActions[AilmentNameForAction]
-          end
-        else
-          -- fallback for other types
-          if AilmentNameForAction then
-            ActionToExecute = AllAilmentActions[AilmentNameForAction]
-          end
-        end
+        print(string.format("    Action completed for: %s", AilmentName))
       end
 
-      if next(Ad.SmartFurnitureMap) == nil then
-        Ad:initialize_smart_furniture()
-        print("    DEBUG: SmartFurnitureMap contents:")
-        for Key, Value in Ad.SmartFurnitureMap do
-          print(string.format("      %s: %s", Key, Value["name"]))
-        end
-      end
+      Completed[AilmentName] = true
+    end)()
+  end
 
-      if ActionToExecute ~= nil then 
-        local TargetCFrame = nil
-        if ActionRequiresTargetCFrame then
-          if PetModel and PetModel.PrimaryPart then
-            TargetCFrame = PetModel.PrimaryPart.CFrame * CFrame.new(0,0,-3) 
-            print(string.format("    Using placeholder TargetCFrame for '%s' action near pet.", AilmentNameForAction))
-          else
-            warn(string.format("    ProcessTaskPlan: Cannot determine TargetCFrame for action '%s': PetModel or PrimaryPart missing. Skipping this task.", tostring(AilmentNameForAction)))
-            ActionRequiresTargetCFrame = false 
-          end
-        end
+  local StartTime = os.clock()
+  local TimeoutSeconds = TIMEOUTS.DEFAULT * 3
+  local AllDone
+  
+  while true do
+    AllDone = true
 
-        print(string.format("    Executing action for: %s", tostring(AilmentNameForAction or TaskData["type"])))
-        local Success, ErrorMessage
-        if ActionRequiresTargetCFrame and TargetCFrame then 
-          if type(ActionToExecute) == "table" and ActionToExecute["Smart"] then
-            warn(string.format("    ProcessTaskPlan: For '%s', Smart method selected with TargetCFrame.", tostring(AilmentNameForAction)))
-            Success, ErrorMessage = pcall(ActionToExecute["Smart"], PetModel, TargetCFrame, true)
-          elseif type(ActionToExecute) == "function" then 
-            warn(string.format("    ProcessTaskPlan: WARNING - ActionRequiresTargetCFrame is true, but ActionToExecute for '%s' is a direct function. Calling with TargetCFrame anyway.", tostring(AilmentNameForAction)))
-            Success, ErrorMessage = pcall(ActionToExecute, PetModel, TargetCFrame, true) 
-          else
-            warn(string.format("    ProcessTaskPlan: WARNING - ActionToExecute for '%s' is not a table with .Smart or a direct function. Cannot execute with TargetCFrame.", tostring(AilmentNameForAction)))
-            Success = false
-            ErrorMessage = "Action structure incompatible with TargetCFrame requirement."
-          end
-        else
-          if type(ActionToExecute) == "table" and ActionToExecute["Standard"] then
-            warn(string.format("    ProcessTaskPlan: For '%s', Standard method selected (or no TargetCFrame needed/available).", tostring(AilmentNameForAction)))
-            Success, ErrorMessage = pcall(ActionToExecute["Standard"], PetModel, true)
-          elseif type(ActionToExecute) == "function" then 
-            warn(string.format("    ProcessTaskPlan: For '%s', direct function call (no TargetCFrame needed/available).", tostring(AilmentNameForAction)))
-            Success, ErrorMessage = pcall(ActionToExecute, PetModel, true) 
-          else
-            warn(string.format("    ProcessTaskPlan: WARNING - ActionToExecute for '%s' is not a table with .Standard or a direct function. Cannot execute.", tostring(AilmentNameForAction)))
-            Success = false
-            ErrorMessage = "Action structure incompatible for non-TargetCFrame execution."
-          end
-        end
+    for _, TaskData in GeneratedPlan do
+      if Completed[TaskData.task_id] then continue end
+      AllDone = false; break
+    end
 
-        if not Success then
-          warn(string.format("    Error executing action '%s': %s", tostring(AilmentNameForAction or TaskData["type"]), tostring(ErrorMessage)))
-        else
-          print(string.format("    Action completed for: %s", tostring(AilmentNameForAction or TaskData["type"])))
-        end
-        task.wait(1) 
-      else
-        warn(string.format("    No specific action found in AilmentActions for task type: %s with ailment/desc: %s", tostring(TaskData["type"]), tostring(TaskData["ailment"] or TaskData["description"] or "N/A")))
-      end
+    if AllDone then break end
+    task.wait(0.2)
+
+    if os.clock() - StartTime > TimeoutSeconds then
+      warn(string.format("ProcessTaskPlan: Timed out waiting for all tasks to complete for Pet: %s (%s)", PetModel["Name"], PetUniqueId))
+      break
     end
   end
 
+  -- Checking unresolved ailments
   if OriginalAilmentsFlatList and #OriginalAilmentsFlatList > 0 then
     print(string.format("--- Checking unresolved ailments for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
     local UnresolvedCount = 0
-    for _, AilmentName in OriginalAilmentsFlatList do
-      if Ad:verify_ailment_exists(PetModel, AilmentName) then
+    for _, CurrentAilmentName in ipairs(OriginalAilmentsFlatList) do
+      if Ad:verify_ailment_exists(PetModel, CurrentAilmentName) then
         UnresolvedCount = UnresolvedCount + 1
-        warn(string.format("  FLAGGED: Initial ailment '%s' for pet '%s' was NOT resolved by the plan.", AilmentName, PetUniqueId))
+        warn(string.format("  FLAGGED: Initial ailment '%s' for pet '%s' was NOT resolved by the plan.", CurrentAilmentName, PetUniqueId))
       end
     end
     if UnresolvedCount == 0 then
@@ -1049,7 +518,7 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
     end
   end
 
-  print("--- Finished Task Plan Execution for Pet: " .. PetUniqueId .. " ---")
+  print(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
 end
 -- [[ END FUNCTION TO PROCESS TASK PLAN ]] --
 
