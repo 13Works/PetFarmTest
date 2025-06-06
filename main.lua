@@ -529,6 +529,7 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
   end
 
   print(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
+  return true
 end
 -- [[ END FUNCTION TO PROCESS TASK PLAN ]] --
 
@@ -629,7 +630,12 @@ while _G.PetFarmLoopInstanceId == CurrentInstanceLoopId and task.wait(10) do
               local GeneratedPlan = TaskPlanner:GenerateTaskPlan(PetDataForPlanner, true)
               PlanFormatter.Print(GeneratedPlan, PetDataForPlanner["unique"], PlannerAilmentCategories)
 
-              ProcessTaskPlan(PetDataForPlanner["unique"], PetModel, GeneratedPlan, AilmentActions, PetRawData["ailments"])
+              local Success, ErrorMessage = pcall(function()
+                ProcessTaskPlan(PetDataForPlanner["unique"], PetModel, GeneratedPlan, AilmentActions, PetRawData["ailments"])
+              end)
+              if not Success then
+                warn(string.format("Error processing task plan for pet '%s': %s", PetDataForPlanner["unique"], ErrorMessage))
+              end
             else
               warn(string.format("TaskPlanner or PlanFormatter not loaded correctly. Cannot generate or print plan. (Loop ID: %s)", CurrentInstanceLoopId))
             end
