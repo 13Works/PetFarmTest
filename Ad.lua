@@ -787,15 +787,8 @@ function Ad:handle_smart_or_teleport_ailment(AilmentTargetCFrame, LocationName, 
 end
 
 function Ad:handle_main_map_ailment(AilmentTargetCFrame, PetModel)
-  -- Hold pet
-  local PetUniqueId = self:get_pet_unique_id_string(PetModel)
-  if (not PetUniqueId or PetUniqueId == "stub_pet_unique_id_error") then
-    warn("handle_main_map_ailment: Could not get a valid unique ID for PetModel.")
-    return
-  end
-  
   local Success, ErrorMessage = pcall(function()
-    Ad.__api.pet_object.hold_baby(PetUniqueId)
+    Ad.__api.adopt.hold_baby(PetModel)
   end)
   if (not Success) then
     warn("handle_main_map_ailment: Failed to hold pet:", ErrorMessage or "Unknown error")
