@@ -601,15 +601,15 @@ function Ad:teleport_to_ailment_location(Location)
 end
 
 --[[
-  @param FurnitureModel table -- The furniture model
+  @param SitableFurnitureObject table -- The furniture object to check
   @return boolean -- Whether the furniture is owned
 ]]
-function Ad:is_furniture_owned(FurnitureModel)
-  if not FurnitureModel or not FurnitureModel.Parent or not FurnitureModel.Parent.Name then
-    warn("is_furniture_owned_by_local_player: Invalid FurnitureModel or missing parent.")
-    return false
+function Ad:is_sitable_owned(SitableFurnitureObject)
+  if (not SitableFurnitureObject or not SitableFurnitureObject["name"] or not SitableFurnitureObject["model"]) then
+    warn(string.format("is_sitable_owned: Invalid arguments. SitableFurnitureObject: %s", tostring(SitableFurnitureObject)))
+    return
   end
-  local ParentName = FurnitureModel.Parent.Name
+  local ParentName = SitableFurnitureObject["model"].Parent.Name
   local Segments = string.split(ParentName, "/")
   local OwnerName = Segments[1]
   if (OwnerName and OwnerName:lower() == LocalPlayer.Name:lower()) then
