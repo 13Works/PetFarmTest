@@ -601,20 +601,19 @@ function Ad:teleport_to_ailment_location(Location)
 end
 
 --[[
-  @param FurnitureUniqueId string -- The unique ID of the furniture
+  @param FurnitureModel table -- The furniture model
   @return boolean -- Whether the furniture is owned
 ]]
-function Ad:STUBBED_is_furniture_owned(FurnitureUniqueId)
-  local FurnitureDB = require(ReplicatedStorage["ClientDB"]["Housing"]["FurnitureDB"])
-  local PlayerData = self:get_player_data()
-  if (not PlayerData or not PlayerData["furniture_manager"] or not PlayerData["furniture_manager"]["owned_furniture"]) then
+function Ad:is_furniture_owned(FurnitureModel)
+  if not FurnitureModel or not FurnitureModel.Parent or not FurnitureModel.Parent.Name then
+    warn("is_furniture_owned_by_local_player: Invalid FurnitureModel or missing parent.")
     return false
   end
-  local OwnedFurniture = PlayerData["furniture_manager"]["owned_furniture"]
-  for _, FurnitureInfo in OwnedFurniture do
-    if (FurnitureInfo["unique"] == FurnitureUniqueId) then
-      return true
-    end
+  local ParentName = FurnitureModel.Parent.Name
+  local Segments = string.split(ParentName, "/")
+  local OwnerName = Segments[1]
+  if (OwnerName and OwnerName:lower() == LocalPlayer.Name:lower()) then
+    return true
   end
   return false
 end
