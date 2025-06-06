@@ -1209,13 +1209,16 @@ function Ad:setup_safety_platforms()
   CreatePlatformIfMissing("SafetyPlatform_Home_" .. LocalPlayer.Name, HomeFloorTopPosition)
 end
 
+local IgnoreGoHome = true
 --[[
   Teleports the local player to their home by subscribing to their house and setting their location.
   @return boolean -- true if the process was initiated, false if failed
 ]]
 function Ad:go_home()
-  print("DEBUG: Skipping go_home()")
-  return true
+  if IgnoreGoHome then
+    print("DEBUG: Skipping go_home()")
+    return true
+  end
   print("Ad:go_home() Attempting to go home")
   local Success, ErrorMessage = pcall(function()
     Ad.__api.pet.exit_furniture_use_states()
