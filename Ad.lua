@@ -85,8 +85,8 @@ do -- Initialize API
       end
     };
     ["location"] = {
-      ["set_location"] = function(LocationName, Player)
-        API["LocationAPI/SetLocation"]:FireServer(LocationName, Player)
+      ["set_location"] = function(LocationName, Player, TeleportType)
+        API["LocationAPI/SetLocation"]:FireServer(LocationName, Player, TeleportType)
       end
     };
     ["pet"] = {
@@ -786,6 +786,33 @@ function Ad:handle_smart_or_teleport_ailment(AilmentTargetCFrame, LocationName, 
   self:teleport_to_ailment_location(LocationName)
 end
 
+function Ad:handle_main_map_ailment(AilmentTargetCFrame, PetModel)
+  -- Hold pet
+  local PetUniqueId = self:get_pet_unique_id_string(PetModel)
+  if (not PetUniqueId or PetUniqueId == "stub_pet_unique_id_error") then
+    warn("handle_main_map_ailment: Could not get a valid unique ID for PetModel.")
+    return
+  end
+  
+  local Success, ErrorMessage = pcall(function()
+    Ad.__api.pet_object.hold_baby(PetUniqueId)
+  end)
+  if (not Success) then
+    warn("handle_main_map_ailment: Failed to hold pet:", ErrorMessage or "Unknown error")
+    return
+  end
+
+  task.wait(0.5)
+
+  local Character = LocalPlayer["Character"]
+  if (not Character or not Character:FindFirstChild("HumanoidRootPart")) then
+    warn("handle_main_map_ailment: LocalPlayer.Character.HumanoidRootPart not found. Cannot move to target CFrame.")
+    return
+  end
+
+  Character["HumanoidRootPart"]["Position"] = AilmentTargetCFrame.Position + Vector3.new(0, 5, 0)
+end
+
 --[[
   Returns the PlayerData table for the LocalPlayer from ClientData.
   @param self table -- The table that contains the function
@@ -1232,6 +1259,10 @@ function Ad:go_home()
   end
   print("Ad:go_home() Successfully went home")
   return true
+end
+
+function Ad:teleport_to_main_map()
+  Ad.__api.location.set_location("MainMap", nil, "Default")
 end
 
 --[[
