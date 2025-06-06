@@ -14,7 +14,11 @@ local AilmentActions = {
   ["bored"] = function(PetModel, WaitForCompletion)
     local OuterPcallSuccess, ErrorMessage = pcall(function()
       local CoreActionLambda = function()
-        Ad:go_home()
+        local Success = Ad:go_home()
+        if not Success then
+          warn("Error going home in 'bored' ailment action.")
+          return
+        end
         local TargetCFrame = workspace["StaticMap"]["Park"]["BoredAilmentTarget"]["CFrame"]
         Ad:handle_smart_or_teleport_ailment(TargetCFrame, "park", PetModel, "bored") 
       end
@@ -43,7 +47,11 @@ local AilmentActions = {
   ["beach_party"] = function(PetModel, WaitForCompletion)
     local OuterPcallSuccess, ErrorMessage = pcall(function()
       local CoreActionLambda = function()
-        Ad:go_home()
+        local Success = Ad:go_home()
+        if not Success then
+          warn("Error going home in 'beach_party' ailment action.")
+          return
+        end
         local AilmentTargetCFrame = workspace["StaticMap"]["Beach"]["BeachPartyAilmentTarget"]["CFrame"]
         Ad:handle_smart_or_teleport_ailment(AilmentTargetCFrame, "beach", PetModel, "beach_party")
       end
@@ -72,7 +80,11 @@ local AilmentActions = {
   ["camping"] = function(PetModel, WaitForCompletion)
     local OuterPcallSuccess, ErrorMessage = pcall(function()
       local CoreActionLambda = function()
-        Ad:go_home()
+        local Success = Ad:go_home()
+        if not Success then
+          warn("Error going home in 'camping' ailment action.")
+          return
+        end
         local AilmentTargetCFrame = workspace["StaticMap"]["Campsite"]["CampsiteOrigin"]["CFrame"]
         Ad:handle_smart_or_teleport_ailment(AilmentTargetCFrame, "campsite", PetModel, "camping")
       end
@@ -397,6 +409,11 @@ local AilmentActions = {
     ["Standard"] = function(PetModel, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
+          local Success = Ad:go_home()
+          if not Success then
+            warn("Error going home in 'sleepy' ailment action.")
+            return
+          end
           local FurnitureItem = Ad:retrieve_smart_furniture("sleepy", true, true)
 
           if not FurnitureItem then
@@ -485,6 +502,11 @@ local AilmentActions = {
     ["Standard"] = function(PetModel, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
+          local Success = Ad:go_home()
+          if not Success then
+            warn("Error going home in 'dirty' ailment action.")
+            return
+          end
           local FurnitureItem = Ad:retrieve_smart_furniture("dirty", true, true)
 
           if not FurnitureItem then
@@ -624,6 +646,11 @@ local AilmentActions = {
     ["Standard"] = function(PetModel, WaitForCompletion)
       local OuterPcallSuccess, ErrorMessage = pcall(function()
         local CoreActionLambda = function()
+          local Success = Ad:go_home()
+          if not Success then
+            warn("Error going home in 'toilet' ailment action.")
+            return
+          end
           local FurnitureItem = Ad:retrieve_smart_furniture("toilet", true, true)
 
           if not FurnitureItem then
