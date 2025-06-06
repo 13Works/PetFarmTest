@@ -15,7 +15,7 @@ local AILMENTS = {
   ["DIRTY"] = "dirty", ["HUNGRY"] = "hungry", ["SICK"] = "sick", 
   ["SLEEPY"] = "sleepy", ["SALON"] = "salon", ["SCHOOL"] = "school", 
   ["PIZZA_PARTY"] = "pizza_party", ["THIRSTY"] = "thirsty", ["PLAY"] = "play",
-  ["TOILET"] = "toilet", ["RIDE"] = "ride", ["WALK"] = "walk"
+  ["TOILET"] = "toilet", ["RIDE"] = "ride", ["WALK"] = "walk", ["MYSTERY"] = "not_implemented"
 }
 local TIMEOUTS = {["DEFAULT"] = 50, ["CONSUMABLE"] = 25, ["INTERACTION"] = 30, ["LOCATION"] = 50, ["MOVEMENT"] = 40}
 local ITEMS = {["FOOD"] = "teachers_apple", ["DRINK"] = "water", ["HEALING"] = "healing_apple"}
@@ -419,6 +419,13 @@ local AilmentActions = {
       end
     end;
   };
+  [AILMENTS.MYSTERY] = NewAilmentAction {
+    ["AilmentName"] = AILMENTS.MYSTERY;
+    ["DefaultTimeout"] = TIMEOUTS.CONSUMABLE;
+    ["CoreAction"] = function(PetModel)
+      print("AilmentActions.mystery: Not implemented")
+    end;
+  };
 }
 
 -- [[ FUNCTION TO PROCESS TASK PLAN - TO BE EXPANDED ]] --
@@ -464,7 +471,7 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
       local ActionTable = AllAilmentActions[AilmentName]
       local PotentialAction = typeof(ActionTable) == "table" and ActionTable.Standard or ActionTable
       if not PotentialAction or typeof(PotentialAction) ~= "function" then
-        warn(string.format("    No executable action function found for ailment '%s' (TaskType: %s). PotentialAction is: %s", AilmentName, TaskData.Type, tostring(PotentialAction) or "N/A"))
+        warn(string.format("    No executable action function found for ailment '%s' (TaskType: %s).", AilmentName, TaskData.Type))
         Completed[AilmentName] = true
         return
       end
