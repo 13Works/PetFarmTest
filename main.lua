@@ -768,7 +768,7 @@ local AilmentActions = {
         end
         while Ad:verify_ailment_exists(PetModel, "ride") do
           Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-          task.wait(0.2)
+          task.wait(0.5)
         end
         -- Unequip the stroller after the task is complete
         local UnequipSuccess, UnequipResult = pcall(function()
@@ -794,6 +794,55 @@ local AilmentActions = {
     end)
     if not OuterPcallSuccess then
       warn(string.format("Error setting up or invoking 'ride' ailment action: %s", ErrorMessage or "Unknown error"))
+    end
+  end;
+
+  ["walk"] = function(PetModel, WaitForCompletion)
+    local OuterPcallSuccess, ErrorMessage = pcall(function()
+      local CoreActionLambda = function()
+        -- Hold the pet
+        local HoldSuccess, HoldError = pcall(function()
+          Ad.__api.adopt.hold_baby(PetModel)
+        end)
+        if not HoldSuccess then
+          warn("AilmentActions.walk: Failed to hold pet:", HoldError)
+          return
+        end
+        -- Wait for the walk ailment to clear
+        local Character = LocalPlayer.Character
+        local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+        if not Humanoid then
+          warn("AilmentActions.walk: Humanoid not found in character.")
+          return
+        end
+        while Ad:verify_ailment_exists(PetModel, "walk") do
+          Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+          task.wait(0.5)
+        end
+        -- Drop the pet
+        local EjectSuccess, EjectError = pcall(function()
+          Ad.__api.adopt.eject_baby(PetModel)
+        end)
+        if not EjectSuccess then
+          warn("AilmentActions.walk: Failed to drop pet:", EjectError)
+        end
+      end
+      if WaitForCompletion then
+        local DidAilmentClear, ResultMessage = Ad:execute_action_with_timeout(PetModel, "walk", 40, nil, CoreActionLambda)
+        if not DidAilmentClear then
+          warn(string.format("PetFarmOfficial.AilmentActions.walk: %s", ResultMessage))
+        else
+          print(string.format("PetFarmOfficial.AilmentActions.walk: %s", ResultMessage))
+        end
+      else
+        local ActionSuccess, ActionError = pcall(CoreActionLambda)
+        if not ActionSuccess then
+          warn(string.format("PetFarmOfficial.AilmentActions.walk: Error during non-awaited execution: %s", tostring(ActionError)))
+        end
+      end
+    end)
+    if not OuterPcallSuccess then
+      warn(string.format("Error setting up or invoking 'walk' ailment action: %s", ErrorMessage or "Unknown error"))
     end
   end;
 }
