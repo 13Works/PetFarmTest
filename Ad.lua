@@ -32,6 +32,11 @@ do -- Initialize API
   loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/RenderAPI.lua"), true))()
 
   Ad.__api = {
+    ["ailments"] = {
+      ["choose_mystery_ailment"] = function(PetUniqueId, Choice)
+        API["AilmentAPI/ChooseMysteryAilment"]:FireServer(PetUniqueId, "mystery", 1, Choice)
+      end
+    };
     ["housing"] = {
       ["activate_interior_furniture"] = function(InteriorUniqueId, FurnitureUniqueId, UseBlock, PetModel)
         API["HousingAPI/ActivateInteriorFurniture"]:InvokeServer(InteriorUniqueId, FurnitureUniqueId, UseBlock, PetModel)
@@ -45,8 +50,8 @@ do -- Initialize API
       ["buy_furnitures"] = function(ItemsToBuy)
         API["HousingAPI/BuyFurnitures"]:InvokeServer(ItemsToBuy)
       end,
-      ["activate_furniture"] = function(FurnitureName, SeatToUse, PositionData, PetModel)
-        API["HousingAPI/ActivateFurniture"]:InvokeServer(LocalPlayer, FurnitureName, SeatToUse, PositionData, PetModel)
+      ["activate_furniture"] = function(Player, FurnitureName, SeatToUse, PositionData, PetModel)
+        API["HousingAPI/ActivateFurniture"]:InvokeServer(Player, FurnitureName, SeatToUse, PositionData, PetModel)
       end
     };
     ["pet_object"] = {
@@ -1204,18 +1209,22 @@ function Ad:setup_safety_platforms()
   CreatePlatformIfMissing("SafetyPlatform_Home_" .. LocalPlayer.Name, HomeFloorTopPosition)
 end
 
+local IgnoreGoHome = true
 --[[
   Teleports the local player to their home by subscribing to their house and setting their location.
   @return boolean -- true if the process was initiated, false if failed
 ]]
 function Ad:go_home()
+  if IgnoreGoHome then
+    print("DEBUG: Skipping go_home()")
+    return true
+  end
   print("Ad:go_home() Attempting to go home")
   local Success, ErrorMessage = pcall(function()
-    -- Ad.__api.pet.exit_furniture_use_states()
-    -- Ad.__api.housing.subscribe_to_house(LocalPlayer)
-    -- Ad.__api.location.set_location("housing", LocalPlayer)
-    -- Ad.__api.housing.push_furniture_changes({})
-    print("Skipping go_home()")
+    Ad.__api.pet.exit_furniture_use_states()
+    Ad.__api.housing.subscribe_to_house(LocalPlayer)
+    Ad.__api.location.set_location("housing", LocalPlayer)
+    Ad.__api.housing.push_furniture_changes({})
   end)
   if (not Success) then
     warn(string.format("Ad:go_home() Error: %s", ErrorMessage or "Unknown error"))
