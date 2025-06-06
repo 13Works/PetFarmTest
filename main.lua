@@ -877,11 +877,8 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
         end
       end
 
-      if TaskData["type"] == "location" or TaskData["type"] == "location_bonus" then
-        if next(Ad.SmartFurnitureMap) == nil then
-          Ad:initialize_smart_furniture()
-        end
-        -- print the SmartFurnitureMap
+      if next(Ad.SmartFurnitureMap) == nil then
+        Ad:initialize_smart_furniture()
         print("    DEBUG: SmartFurnitureMap contents:")
         for Key, Value in Ad.SmartFurnitureMap do
           print(string.format("      %s: %s", Key, Value["name"]))
