@@ -1117,38 +1117,44 @@ function Ad:setup_safety_platforms()
     warn("SetupSafetyPlatforms: Could not find StaticMap.")
   end
 
-  if LocalPlayer and LocalPlayer["Name"] then
-    local HouseInteriors = workspace:FindFirstChild("HouseInteriors")
-    if HouseInteriors then
-      local BlueprintFolder = HouseInteriors:FindFirstChild("blueprint")
-      if BlueprintFolder then
-        local PlayerHouseBlueprint = BlueprintFolder:FindFirstChild(LocalPlayer["Name"])
-        if PlayerHouseBlueprint then
-          local FloorsFolder = PlayerHouseBlueprint:FindFirstChild("Floors")
-          if FloorsFolder then
-            local FloorParts = FloorsFolder:GetChildren()
-            if #FloorParts > 0 and FloorParts[1]:IsA("BasePart") then
-              local MainFloorPart = FloorParts[1]
-              local HomeFloorTopPosition = MainFloorPart.Position + Vector3.new(0, MainFloorPart.Size.Y / 2, 0)
-              CreatePlatformIfMissing("SafetyPlatform_Home_" .. LocalPlayer["Name"], HomeFloorTopPosition)
-            else
-              warn("SetupSafetyPlatforms: Could not find suitable floor part for player: ", LocalPlayer["Name"])
-            end
-          else
-            warn("SetupSafetyPlatforms: Could not find FloorsFolder for player: ", LocalPlayer["Name"])
-          end
-        else
-          warn("SetupSafetyPlatforms: Could not find PlayerHouseBlueprint for player: ", LocalPlayer["Name"])
-        end
-      else
-        warn("SetupSafetyPlatforms: Could not find HouseInteriors.blueprint folder.")
-      end
-    else
-      warn("SetupSafetyPlatforms: Could not find HouseInteriors folder.")
-    end
-  else
+  if not (LocalPlayer and LocalPlayer.Name) then
     warn("SetupSafetyPlatforms: LocalPlayer or LocalPlayer.Name not available for Home platform.")
+    return
   end
+
+  local HouseInteriors = workspace:FindFirstChild("HouseInteriors")
+  if not HouseInteriors then
+    warn("SetupSafetyPlatforms: Could not find HouseInteriors folder.")
+    return
+  end
+
+  local BlueprintFolder = HouseInteriors:FindFirstChild("blueprint")
+  if not BlueprintFolder then
+    warn("SetupSafetyPlatforms: Could not find HouseInteriors.blueprint folder.")
+    return
+  end
+
+  local PlayerHouseBlueprint = BlueprintFolder:FindFirstChild(LocalPlayer.Name)
+  if not PlayerHouseBlueprint then
+    warn("SetupSafetyPlatforms: Could not find PlayerHouseBlueprint for player: ", LocalPlayer.Name)
+    return
+  end
+
+  local FloorsFolder = PlayerHouseBlueprint:FindFirstChild("Floors")
+  if not FloorsFolder then
+    warn("SetupSafetyPlatforms: Could not find FloorsFolder for player: ", LocalPlayer.Name)
+    return
+  end
+
+  local FloorParts = FloorsFolder:GetChildren()
+  if #FloorParts == 0 or not FloorParts[1]:IsA("BasePart") then
+    warn("SetupSafetyPlatforms: Could not find suitable floor part for player: ", LocalPlayer.Name)
+    return
+  end
+
+  local MainFloorPart = FloorParts[1]
+  local HomeFloorTopPosition = MainFloorPart.Position + Vector3.new(0, MainFloorPart.Size.Y / 2, 0)
+  CreatePlatformIfMissing("SafetyPlatform_Home_" .. LocalPlayer.Name, HomeFloorTopPosition)
 end
 
 return Ad
