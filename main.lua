@@ -219,14 +219,14 @@ local AilmentActions = {
   [AILMENTS.HUNGRY] = NewAilmentAction {
     ["AilmentName"] = AILMENTS.HUNGRY;
     ["DefaultTimeout"] = TIMEOUTS.CONSUMABLE;
-    ["CoreAction"] = function(PetModel)
+    ["CoreAction"] = function(PetModel, Config)
       Ad:purchase_and_consume_item(PetModel, ITEMS.FOOD)
     end;
   };
   [AILMENTS.THIRSTY] = NewAilmentAction {
     ["AilmentName"] = AILMENTS.THIRSTY;
     ["DefaultTimeout"] = TIMEOUTS.CONSUMABLE;
-    ["CoreAction"] = function(PetModel)
+    ["CoreAction"] = function(PetModel, Config)
       Ad:purchase_and_consume_item(PetModel, ITEMS.DRINK)
     end;
   };
@@ -481,10 +481,9 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
         return
       end
 
-      -- STYLE_GUIDE.md > Error Handling & Control Flow: Use CancelToken to stop movement loops
       local CancelToken = nil
       if table.find({AILMENTS.RIDE, AILMENTS.WALK, AILMENTS.PLAY}, AilmentName) then
-        CancelToken = {ShouldStop = false}
+        CancelToken = {["ShouldStop"] = false}
       end
 
       local Success, ErrorMessage = pcall(PotentialAction, PetModel, CancelToken)
@@ -559,7 +558,7 @@ while _G.PetFarmLoopInstanceId == CurrentInstanceLoopId and task.wait(10) do
   LoopCounter = LoopCounter + 1
   if _G.PetFarm == true then
     if LoopCounter % 5 == 0 and not IsEquippedPetsModuleReportingNoPets then 
-      print("PetFarm is ACTIVE (loop ID: " .. CurrentInstanceLoopId .. ", checked at " .. os.date("%X") .. ")")
+      print(string.format("%s - PetFarm is ACTIVE (loop ID: %s, checked at %s)", os.date("%X"), CurrentInstanceLoopId, os.date("%X")))
     end
 
     local CurrentEquippedPetUniqueIds = Ad:get_my_equipped_pet_uniques()
