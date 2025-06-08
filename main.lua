@@ -437,7 +437,7 @@ local AilmentActions = {
 --[[
   @param self table -- The table that contains the function
   @param PetUniqueId string -- The unique ID of the pet
-  @param PetModel table -- The pet model
+  @param PetModel model -- The pet model
   @param GeneratedPlan table -- The generated plan
   @param AllAilmentActions table -- The all ailment actions
   @param OriginalAilmentsFlatList table -- The original ailments flat list
@@ -548,7 +548,7 @@ local AilmentActions = {
 --[[
   @param self table -- The table that contains the function
   @param PetUniqueId string -- The unique ID of the pet
-  @param PetModel table -- The pet model
+  @param PetModel model -- The pet model
   @param GeneratedPlan table -- The initial generated plan
   @param AllAilmentActions table -- The all ailment actions
   @param OriginalAilmentsFlatList table -- The original ailments flat list for final verification
@@ -559,7 +559,7 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
     warn("ProcessTaskPlan: Missing or invalid PetUniqueId.")
     return false
   end
-  if not PetModel or type(PetModel) ~= "table" then
+  if not PetModel or not (type(PetModel) == "Instance" and PetModel:IsA("Model")) then
     warn(string.format("ProcessTaskPlan: Missing or invalid PetModel for %s.", PetUniqueId))
     return false
   end
@@ -701,7 +701,7 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
       -- e.g., Ad:get_current_ailments(PetModel)
       local CurrentPetAilments = {}
       if Ad and Ad.get_current_ailments then
-         CurrentPetAilments = Ad:get_current_ailments(PetModel)
+         CurrentPetAilments = Ad:get_current_ailments()
       elseif Ad and Ad.verify_ailment_exists then -- Fallback to check OriginalAilmentsFlatList if get_current_ailments is not available
           for _, AilmentName in (OriginalAilmentsFlatList or {}) do
               if Ad:verify_ailment_exists(PetModel, AilmentName) then
