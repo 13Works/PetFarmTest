@@ -443,52 +443,223 @@ local AilmentActions = {
   @param OriginalAilmentsFlatList table -- The original ailments flat list
 ]]
 -- [[ FUNCTION TO PROCESS TASK PLAN - REVISED ]] --
+-- local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentActions, OriginalAilmentsFlatList)
+--   print(string.format("--- Starting Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
+--   if not GeneratedPlan or #GeneratedPlan == 0 then
+--     print(string.format("ProcessTaskPlan: No tasks in the generated plan for %s. Initial ailments: [%s]", PetUniqueId, table.concat(OriginalAilmentsFlatList or {}, ", ")))
+--     print(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
+--     return -- Exit early if no plan
+--   end
+
+--   print(string.format("  Initial ailments for this plan: [%s]", table.concat(OriginalAilmentsFlatList or {}, ", ")))
+
+--   -- Initialize SmartFurnitureMap once if needed
+--   if next(Ad.SmartFurnitureMap) == nil then
+--     Ad:initialize_smart_furniture()
+--   end
+
+--   local Running = {}
+--   local Completed = {}
+
+--   for TaskIndex, TaskData in GeneratedPlan do
+--     coroutine.wrap(function()
+--       local AilmentName = TaskData.ailment
+--       local WaitForAilment = TaskData.wait_for_ailment_completion
+
+--       if WaitForAilment then
+--         while not Completed[WaitForAilment] do
+--           task.wait(0.2)
+--         end
+--       end
+
+--       print(string.format("    [Task] Starting: %s (type: %s)", tostring(AilmentName), tostring(TaskData.type)))
+--       local ActionTable = AllAilmentActions[AilmentName]
+--       local PotentialAction = typeof(ActionTable) == "table" and ActionTable.Standard or ActionTable
+--       if not PotentialAction or typeof(PotentialAction) ~= "function" then
+--         warn(string.format("    No executable action function found for ailment '%s' (TaskType: %s).", AilmentName, TaskData.type))
+--         Completed[AilmentName] = true
+--         return
+--       end
+
+--       local CancelToken = nil
+--       if table.find({AILMENTS.RIDE, AILMENTS.WALK, AILMENTS.PLAY}, AilmentName) then
+--         CancelToken = {["ShouldStop"] = false}
+--       end
+
+--       local Success, ErrorMessage = pcall(PotentialAction, PetModel, CancelToken)
+--       if not Success then
+--         warn(string.format("    Error executing action '%s': %s", AilmentName, tostring(ErrorMessage)))
+--       else
+--         print(string.format("    Action completed for: %s", AilmentName))
+--       end
+
+--       if CancelToken then
+--         CancelToken.ShouldStop = true
+--       end
+
+--       Completed[AilmentName] = true
+--     end)()
+--   end
+
+--   local StartTime = os.clock()
+--   local TimeoutSeconds = TIMEOUTS.DEFAULT * 3
+--   local AllDone
+  
+--   while true do
+--     AllDone = true
+
+--     for _, TaskData in GeneratedPlan do
+--       if Completed[TaskData.ailment] then continue end
+--       AllDone = false; break
+--     end
+
+--     if AllDone then break end
+--     task.wait(0.2)
+
+--     if os.clock() - StartTime > TimeoutSeconds then
+--       warn(string.format("ProcessTaskPlan: Timed out waiting for all tasks to complete for Pet: %s (%s)", PetModel["Name"], PetUniqueId))
+--       break
+--     end
+--   end
+
+--   -- Checking unresolved ailments
+--   if OriginalAilmentsFlatList and #OriginalAilmentsFlatList > 0 then
+--     print(string.format("--- Checking unresolved ailments for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
+--     local UnresolvedCount = 0
+--     for _, CurrentAilmentName in ipairs(OriginalAilmentsFlatList) do
+--       if Ad:verify_ailment_exists(PetModel, CurrentAilmentName) then
+--         UnresolvedCount = UnresolvedCount + 1
+--         warn(string.format("  FLAGGED: Initial ailment '%s' for pet '%s' was NOT resolved by the plan.", CurrentAilmentName, PetUniqueId))
+--       end
+--     end
+--     if UnresolvedCount == 0 then
+--       print("  All initial ailments for this plan were successfully resolved.")
+--     else
+--       print(string.format("  Total unresolved ailments from initial plan: %d", UnresolvedCount))
+--     end
+--   end
+
+--   print(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
+--   return true
+-- end
+-- [[ END FUNCTION TO PROCESS TASK PLAN ]] --
+
+-- [[ FUNCTION TO PROCESS TASK PLAN - REVISED AND EXPANDED ]] --
+--[[
+  @param self table -- The table that contains the function
+  @param PetUniqueId string -- The unique ID of the pet
+  @param PetModel table -- The pet model
+  @param GeneratedPlan table -- The initial generated plan
+  @param AllAilmentActions table -- The all ailment actions
+  @param OriginalAilmentsFlatList table -- The original ailments flat list for final verification
+]]
 local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentActions, OriginalAilmentsFlatList)
-  print(string.format("--- Starting Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
-  if not GeneratedPlan or #GeneratedPlan == 0 then
-    print(string.format("ProcessTaskPlan: No tasks in the generated plan for %s. Initial ailments: [%s]", PetUniqueId, table.concat(OriginalAilmentsFlatList or {}, ", ")))
-    print(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
-    return -- Exit early if no plan
+  -- Input Validation
+  if not PetUniqueId or type(PetUniqueId) ~= "string" then
+    warn("ProcessTaskPlan: Missing or invalid PetUniqueId.")
+    return false
+  end
+  if not PetModel or type(PetModel) ~= "table" then
+    warn(string.format("ProcessTaskPlan: Missing or invalid PetModel for %s.", PetUniqueId))
+    return false
+  end
+  if not AllAilmentActions or type(AllAilmentActions) ~= "table" then
+    warn(string.format("ProcessTaskPlan: Missing or invalid AllAilmentActions for %s.", PetUniqueId))
+    return false
+  end
+  if not GeneratedPlan then -- Allow empty GeneratedPlan, handled below
+    warn(string.format("ProcessTaskPlan: GeneratedPlan is nil for %s. This is unexpected.", PetUniqueId))
+    GeneratedPlan = {} -- Ensure it's a table
+  end
+
+  print(string.format("--- Starting Task Plan Execution for Pet: %s (%s) ---", PetModel.Name or "Unknown", PetUniqueId))
+
+  if #GeneratedPlan == 0 then
+    print(string.format("ProcessTaskPlan: No tasks in the initial generated plan for %s. Initial ailments: [%s]", PetUniqueId, table.concat(OriginalAilmentsFlatList or {}, ", ")))
+    -- We might still have ailments to process if OriginalAilmentsFlatList has items
+    -- This part of the logic will now try to handle them dynamically.
   end
 
   print(string.format("  Initial ailments for this plan: [%s]", table.concat(OriginalAilmentsFlatList or {}, ", ")))
 
-  -- Initialize SmartFurnitureMap once if needed
-  if next(Ad.SmartFurnitureMap) == nil then
+  -- Initialize SmartFurnitureMap once if needed (assuming Ad is accessible)
+  if not Ad.SmartFurnitureMap or next(Ad.SmartFurnitureMap) == nil then
     Ad:initialize_smart_furniture()
   end
 
-  local Running = {}
-  local Completed = {}
+  -- Task Management Structures
+  local TasksToProcess = {} -- Will hold all tasks, including dynamically added ones
+  local TaskDataMap = {}   -- Maps ailmentName to its full TaskData for easy lookup
 
-  for TaskIndex, TaskData in GeneratedPlan do
-    coroutine.wrap(function()
-      local AilmentName = TaskData.ailment
-      local WaitForAilment = TaskData.wait_for_ailment_completion
+  -- Populate tasksToProcess from the initial GeneratedPlan
+  for _, TaskData in GeneratedPlan do
+    if TaskData and TaskData.ailment then
+      table.insert(TasksToProcess, TaskData.ailment) -- Store ailment name as the identifier
+      TaskDataMap[TaskData.ailment] = TaskData
+    else
+      warn(string.format("ProcessTaskPlan: Invalid task data in GeneratedPlan for %s: %s", PetUniqueId, renversement.json.encode(TaskData))) -- Using a JSON encoder for better table logging
+    end
+  end
 
-      if WaitForAilment then
-        while not Completed[WaitForAilment] do
-          task.wait(0.2)
-        end
-      end
+  local Running = {}    -- AilmentName -> coroutine thread or true
+  local Completed = {}  -- AilmentName -> true
+  local Failed = {}     -- AilmentName -> error message
 
-      print(string.format("    [Task] Starting: %s (type: %s)", tostring(AilmentName), tostring(TaskData.Type)))
-      local ActionTable = AllAilmentActions[AilmentName]
-      local PotentialAction = typeof(ActionTable) == "table" and ActionTable.Standard or ActionTable
-      if not PotentialAction or typeof(PotentialAction) ~= "function" then
-        warn(string.format("    No executable action function found for ailment '%s' (TaskType: %s).", AilmentName, TaskData.Type))
-        Completed[AilmentName] = true
+  local function LaunchTask(AilmentName)
+    if Running[AilmentName] or Completed[AilmentName] or Failed[AilmentName] then
+      return -- Already launched, completed, or failed
+    end
+
+    local TaskDetail = TaskDataMap[AilmentName]
+    if not TaskDetail then
+      -- This could be a dynamically discovered ailment not in the original plan
+      -- We need to create a basic taskDetail for it
+      if not AllAilmentActions[AilmentName] then
+        warn(string.format("    No action definition found for dynamically discovered ailment '%s'. Marking as failed.", AilmentName))
+        Failed[AilmentName] = "No action definition"
+        Completed[AilmentName] = true -- Treat as "done" for processing loop, but it failed.
         return
       end
+      TaskDetail = {
+        ailment = AilmentName,
+        type = "dynamic", -- Indicate it was dynamically added
+        wait_for_ailment_completion = nil -- Dynamic tasks usually don't have pre-defined waits from a plan
 
-      local CancelToken = nil
-      if table.find({AILMENTS.RIDE, AILMENTS.WALK, AILMENTS.PLAY}, AilmentName) then
-        CancelToken = {["ShouldStop"] = false}
-      end
+      }
+      TaskDataMap[AilmentName] = TaskDetail -- Add to map for consistency
+    end
 
+    local WaitForAilment = TaskDetail.wait_for_ailment_completion
+    if WaitForAilment and not Completed[WaitForAilment] then
+      -- print(string.format("    [Task] '%s' is waiting for '%s' to complete.", AilmentName, WaitForAilment))
+      return -- Dependency not met
+    end
+
+    print(string.format("    [Task] Starting: %s (type: %s)", AilmentName, TaskDetail.type or "N/A"))
+    Running[AilmentName] = true -- Mark as trying to run
+
+    local ActionTable = AllAilmentActions[AilmentName]
+    local PotentialAction = (type(ActionTable) == "table" and ActionTable.Standard) or ActionTable
+
+    if not PotentialAction or type(PotentialAction) ~= "function" then
+      warn(string.format("    No executable action function found for ailment '%s' (TaskType: %s).", AilmentName, TaskDetail.type or "N/A"))
+      Failed[AilmentName] = "No executable action"
+      Completed[AilmentName] = true -- Mark as "done" for processing loop
+      Running[AilmentName] = nil
+      return
+    end
+
+    local CancelToken = nil
+    -- Assuming AILMENTS is a global or accessible table of constants
+    if AILMENTS and table.find({AILMENTS.RIDE, AILMENTS.WALK, AILMENTS.PLAY}, AilmentName) then
+      CancelToken = {["ShouldStop"] = false}
+    end
+
+    Running[AilmentName] = coroutine.create(function()
       local Success, ErrorMessage = pcall(PotentialAction, PetModel, CancelToken)
       if not Success then
         warn(string.format("    Error executing action '%s': %s", AilmentName, tostring(ErrorMessage)))
+        Failed[AilmentName] = tostring(ErrorMessage)
       else
         print(string.format("    Action completed for: %s", AilmentName))
       end
@@ -496,53 +667,158 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
       if CancelToken then
         CancelToken.ShouldStop = true
       end
-
       Completed[AilmentName] = true
-    end)()
+      Running[AilmentName] = nil -- No longer running, it's completed or failed
+    end)
+    
+    local Status, ErrorMessage = coroutine.resume(Running[AilmentName])
+    if not Status then
+        warn(string.format("    Coroutine error on initial resume for action '%s': %s", AilmentName, tostring(ErrorMessage)))
+        Failed[AilmentName] = "Coroutine resume error: " .. tostring(ErrorMessage)
+        Completed[AilmentName] = true -- Mark as "done"
+        Running[AilmentName] = nil
+    elseif coroutine.status(Running[AilmentName]) == "dead" then
+        -- Coroutine finished immediately (e.g. error during setup or very fast task)
+        -- pcall inside the coroutine should have caught errors, this is for coroutine lifecycle
+        Running[AilmentName] = nil 
+        -- Completed[ailmentName] will be set by the coroutine's own logic
+    end
   end
 
   local StartTime = os.clock()
-  local TimeoutSeconds = TIMEOUTS.DEFAULT * 3
-  local AllDone
-  
-  while true do
-    AllDone = true
+  -- Assuming TIMEOUTS is a global or accessible table of constants
+  local TimeoutSeconds = (TIMEOUTS and TIMEOUTS.DEFAULT or 60) * 3
+  local LastAilmentCheckTime = 0
 
-    for _, TaskData in GeneratedPlan do
-      if Completed[TaskData.task_id] then continue end
-      AllDone = false; break
+  while task.wait(0.2) do
+    local AllKnownTasksCompleted = true
+    local CanProcessMore = false
+
+    -- 1. Discover new ailments and add them to tasksToProcess
+    --    Check every 1 second or so, not every tick.
+    if os.clock() - LastAilmentCheckTime > 1.0 then
+      -- This function needs to exist and return a flat list of current ailment names
+      -- e.g., Ad:get_current_ailments(PetModel)
+      local CurrentPetAilments = {}
+      if Ad and Ad.get_current_ailments then
+         CurrentPetAilments = Ad:get_current_ailments(PetModel)
+      elseif Ad and Ad.verify_ailment_exists then -- Fallback to check OriginalAilmentsFlatList if get_current_ailments is not available
+          for _, AilmentName in (OriginalAilmentsFlatList or {}) do
+              if Ad:verify_ailment_exists(PetModel, AilmentName) then
+                  table.insert(CurrentPetAilments, AilmentName)
+              end
+          end
+      end
+      
+      for _, AilmentName in CurrentPetAilments do
+        if not TaskDataMap[AilmentName] and not Completed[AilmentName] and not Failed[AilmentName] then
+          if AllAilmentActions[AilmentName] then
+            print(string.format("    [Discovery] New active ailment '%s' found. Adding to processing queue.", AilmentName))
+            table.insert(TasksToProcess, AilmentName)
+            -- Create a basic taskDetail for it so LaunchTask can use it
+            TaskDataMap[AilmentName] = {
+              ailment = AilmentName,
+              type = "dynamic-discovered",
+              wait_for_ailment_completion = nil
+            }
+          else
+            -- print(string.format("    [Discovery] New active ailment '%s' found, but no action defined in AllAilmentActions.", AilmentName))
+          end
+        end
+      end
+      LastAilmentCheckTime = os.clock()
     end
 
-    if AllDone then break end
-    task.wait(0.2)
+    -- 2. Process tasks from the (potentially updated) tasksToProcess list
+    local CurrentlyRunningCount = 0
+    for _, AilmentKeyToProcess in TasksToProcess do -- Iterating over a copy or by index is safer if modifying
+      if not Completed[AilmentKeyToProcess] and not Failed[AilmentKeyToProcess] then
+        AllKnownTasksCompleted = false -- If any task isn't completed/failed, we're not done
+        if not Running[AilmentKeyToProcess] then
+          LaunchTask(AilmentKeyToProcess) -- This will check dependencies
+          if Running[AilmentKeyToProcess] then CanProcessMore = true end
+        end
+      end
+      if Running[AilmentKeyToProcess] and coroutine.status(Running[AilmentKeyToProcess]) ~= "dead" then
+        CurrentlyRunningCount = CurrentlyRunningCount + 1
+        CanProcessMore = true -- indicates something is still actively running or could be run
+      end
+    end
+    
+    if AllKnownTasksCompleted and CurrentlyRunningCount == 0 then
+      -- Check if all tasks in the initial tasksToProcess list are truly done
+      local AllInitialTasksAccountedFor = true
+      for _, AilmentKeyToProcess in TasksToProcess do
+          if not Completed[AilmentKeyToProcess] and not Failed[AilmentKeyToProcess] then
+              AllInitialTasksAccountedFor = false
+              break
+          end
+      end
+      if AllInitialTasksAccountedFor then
+          print("  All known tasks are completed or have failed.")
+          break
+      end
+    end
 
+    -- Break if timeout
     if os.clock() - StartTime > TimeoutSeconds then
-      warn(string.format("ProcessTaskPlan: Timed out waiting for all tasks to complete for Pet: %s (%s)", PetModel["Name"], PetUniqueId))
+      warn(string.format("ProcessTaskPlan: Timed out waiting for tasks for Pet: %s (%s).", PetModel.Name or "Unknown", PetUniqueId))
+      -- Potentially try to cancel running tasks
+      for AilmentName, Co in Running do
+        if Co and coroutine.status(Co) ~= "dead" then
+          -- This is tricky. True cancellation needs tasks to check a token.
+          -- For now, we just log and abandon.
+          warn(string.format("    Task '%s' was still running at timeout.", AilmentName))
+          -- If a cancel token was given to the task, we could try:
+          -- local TaskDetail = taskDataMap[AilmentName]
+          -- if taskDetail and taskDetail.cancelToken then taskDetail.cancelToken.ShouldStop = true end
+        end
+      end
       break
     end
+
+    task.wait(0.2) -- Main loop yield
   end
 
-  -- Checking unresolved ailments
+  -- Final check for unresolved ailments based on the original list
   if OriginalAilmentsFlatList and #OriginalAilmentsFlatList > 0 then
-    print(string.format("--- Checking unresolved ailments for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
+    print(string.format("--- Checking unresolved original ailments for Pet: %s (%s) ---", PetModel.Name or "Unknown", PetUniqueId))
     local UnresolvedCount = 0
-    for _, CurrentAilmentName in ipairs(OriginalAilmentsFlatList) do
-      if Ad:verify_ailment_exists(PetModel, CurrentAilmentName) then
-        UnresolvedCount = UnresolvedCount + 1
-        warn(string.format("  FLAGGED: Initial ailment '%s' for pet '%s' was NOT resolved by the plan.", CurrentAilmentName, PetUniqueId))
+    for _, CurrentAilmentName in OriginalAilmentsFlatList do
+      -- Check if the ailment still exists on the pet AND if our system didn't complete it successfully
+      local StillExistsOnPet = false
+      if Ad and Ad.verify_ailment_exists then
+          StillExistsOnPet = Ad:verify_ailment_exists(PetModel, CurrentAilmentName)
+      end
+
+      if StillExistsOnPet then
+        if not Completed[CurrentAilmentName] or Failed[CurrentAilmentName] then
+            UnresolvedCount = UnresolvedCount + 1
+            local reason = Failed[CurrentAilmentName] and ("failed with: " .. Failed[CurrentAilmentName]) or "was not completed by the plan or dynamically."
+            warn(string.format("  FLAGGED: Original ailment '%s' for pet '%s' %s", CurrentAilmentName, PetUniqueId, reason))
+        elseif not StillExistsOnPet and Completed[CurrentAilmentName] and not Failed[CurrentAilmentName] then
+             -- It was completed and it's gone, good.
+        elseif StillExistsOnPet and Completed[CurrentAilmentName] and not Failed[CurrentAilmentName] then
+            -- Our system thought it completed it, but it's still on the pet.
+            -- This indicates the action might not have actually resolved the ailment.
+            UnresolvedCount = UnresolvedCount + 1
+            warn(string.format("  FLAGGED: Original ailment '%s' for pet '%s' was marked completed by plan, but still exists on pet.", CurrentAilmentName, PetUniqueId))
+        end
       end
     end
     if UnresolvedCount == 0 then
-      print("  All initial ailments for this plan were successfully resolved.")
+      print("  All original ailments for this plan were successfully resolved and no longer exist or were handled.")
     else
-      print(string.format("  Total unresolved ailments from initial plan: %d", UnresolvedCount))
+      print(string.format("  Total unresolved/problematic original ailments: %d", UnresolvedCount))
     end
   end
 
-  print(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
+  print(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel.Name or "Unknown", PetUniqueId))
+  -- Determine overall success. Could be based on whether any tasks failed or timed out.
+  -- For now, let's say it's "successful" if it didn't crash, specific task success is logged.
   return true
 end
--- [[ END FUNCTION TO PROCESS TASK PLAN ]] --
+-- [[ END FUNCTION TO PROCESS TASK PLAN - REVISED AND EXPANDED ]] --
 
 -- Main loop to monitor _G.PetFarm
 local CurrentInstanceLoopId = HttpService:GenerateGUID(false)
