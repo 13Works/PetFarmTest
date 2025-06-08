@@ -555,16 +555,16 @@ local AilmentActions = {
 ]]
 local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentActions, OriginalAilmentsFlatList)
   -- Input Validation
-  if not PetUniqueId or type(PetUniqueId) ~= "string" then
+  if not PetUniqueId or typeof(PetUniqueId) ~= "string" then
     warn("ProcessTaskPlan: Missing or invalid PetUniqueId.")
     return false
   end
-  if not PetModel or not (type(PetModel) == "Instance" and PetModel:IsA("Model")) then
+  if not PetModel or not (typeof(PetModel) == "Instance" and PetModel:IsA("Model")) then
     warn(string.format("ProcessTaskPlan: Missing or invalid PetModel for %s.", PetUniqueId))
     warn(PetModel, typeof(PetModel) == "Instance" and PetModel:IsA("Model"))
     return false
   end
-  if not AllAilmentActions or type(AllAilmentActions) ~= "table" then
+  if not AllAilmentActions or typeof(AllAilmentActions) ~= "table" then
     warn(string.format("ProcessTaskPlan: Missing or invalid AllAilmentActions for %s.", PetUniqueId))
     return false
   end
@@ -640,9 +640,9 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
     Running[AilmentName] = true -- Mark as trying to run
 
     local ActionTable = AllAilmentActions[AilmentName]
-    local PotentialAction = (type(ActionTable) == "table" and ActionTable.Standard) or ActionTable
+    local PotentialAction = (typeof(ActionTable) == "table" and ActionTable.Standard) or ActionTable
 
-    if not PotentialAction or type(PotentialAction) ~= "function" then
+    if not PotentialAction or typeof(PotentialAction) ~= "function" then
       warn(string.format("    No executable action function found for ailment '%s' (TaskType: %s).", AilmentName, TaskDetail.type or "N/A"))
       Failed[AilmentName] = "No executable action"
       Completed[AilmentName] = true -- Mark as "done" for processing loop
@@ -902,7 +902,7 @@ while _G.PetFarmLoopInstanceId == CurrentInstanceLoopId and task.wait(10) do
             for _, AilmentName in PetRawData["ailments"] do
               local FoundCategory = false
               for CategoryName, CategoryData in PlannerAilmentCategories do
-                if type(CategoryData) == "table" and CategoryData[AilmentName] then
+                if typeof(CategoryData) == "table" and CategoryData[AilmentName] then
                   table.insert(PetDataForPlanner["ailments"][CategoryName], AilmentName)
                   FoundCategory = true
                   break 
