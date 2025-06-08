@@ -803,7 +803,8 @@ function Ad:handle_main_map_ailment(AilmentTargetCFrame, PetModel)
     return
   end
 
-  Character["HumanoidRootPart"]["Position"] = AilmentTargetCFrame.Position + Vector3.new(0, 5, 0)
+  local NewPivot = CFrame.new(AilmentTargetCFrame.Position + Vector3.new(0, 5, 0))
+  Character:PivotTo(NewPivot)
 end
 
 --[[
@@ -1021,7 +1022,7 @@ end
 --[[
   @param self table -- The table that contains the function
   @param PetUniqueIdToFind string -- The unique ID of the pet to find
-  @return table -- The pet model
+  @return model -- The pet model
 ]]
 function Ad:get_pet_model_by_unique_id(PetUniqueIdToFind) 
   if not EquippedPetsModule then
