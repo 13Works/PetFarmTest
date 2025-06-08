@@ -561,6 +561,7 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
   end
   if not PetModel or not (type(PetModel) == "Instance" and PetModel:IsA("Model")) then
     warn(string.format("ProcessTaskPlan: Missing or invalid PetModel for %s.", PetUniqueId))
+    warn(PetModel, typeof(PetModel) == "Instance" and PetModel:IsA("Model"))
     return false
   end
   if not AllAilmentActions or type(AllAilmentActions) ~= "table" then
