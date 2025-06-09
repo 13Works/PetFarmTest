@@ -10,6 +10,20 @@ local Ad = loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/P
 local TaskPlanner = loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/TaskPlanner.lua"), true))()
 local PlanFormatter = loadstring(game:HttpGet(("https://raw.githubusercontent.com/13Works/PetFarmTest/refs/heads/main/PlanFormatter.lua"), true))()
 
+local Config = getgenv().Config
+if not Config then
+  getgenv().Config = {
+    ["PetFarm"] = true;
+    ["Debug"] = true;
+  }
+  Config = getgenv().Config
+end
+
+local function Log(Message, IsWarning)
+  if not Config.Debug then return end
+  (IsWarning and warn or print)(Message)
+end
+
 local AILMENTS = {
   ["BORED"] = "bored", ["BEACH_PARTY"] = "beach_party", ["CAMPING"] = "camping", 
   ["DIRTY"] = "dirty", ["HUNGRY"] = "hungry", ["SICK"] = "sick", 
@@ -33,7 +47,7 @@ local function GetCFrameFromPathParts(PathParts)
   for _, PartName in PathParts do
     CurrentObject = CurrentObject:FindFirstChild(PartName)
     if not CurrentObject then
-      warn(string.format("GetCFrameFromPathParts: Could not find %s at %s", table.concat(PathParts, "."), PartName))
+      Log(string.format("GetCFrameFromPathParts: Could not find %s at %s", table.concat(PathParts, "."), PartName), true)
       return nil
     end
   end
@@ -68,11 +82,11 @@ local function NewAilmentAction(Config)
       WaitForCompletion = Args[2]
       if TargetCFrame == nil and WaitForCompletion == nil and #Args == 1 and typeof(Args[1]) == "boolean" then
         -- Smart action called without TargetCFrame, but with WaitForCompletion
-        warn(string.format("AilmentActions.%s: Called as Smart action but TargetCFrame might be missing. Assuming WaitForCompletion is arg1.", ActionFullName))
+        Log(string.format("AilmentActions.%s: Called as Smart action but TargetCFrame might be missing. Assuming WaitForCompletion is arg1.", ActionFullName), true)
         WaitForCompletion = Args[1]
         TargetCFrame = nil -- Explicitly nil, CoreAction must handle
       elseif TargetCFrame == nil and Config.RequiresTargetCFrame then
-        warn(string.format("AilmentActions.%s: TargetCFrame is required but not provided or is nil.", ActionFullName))
+        Log(string.format("AilmentActions.%s: TargetCFrame is required but not provided or is nil.", ActionFullName), true)
         -- Depending on strictness, you might return here or let CoreAction handle nil TargetCFrame
       end
     else
@@ -86,11 +100,11 @@ local function NewAilmentAction(Config)
             return Config.PreCoreAction(PetModel)
           end)
           if not PreSuccess then
-            warn(string.format("PetFarmOfficial.AilmentActions.%s: Error in PreCoreAction: %s", ActionFullName, PreResult))
+            Log(string.format("PetFarmOfficial.AilmentActions.%s: Error in PreCoreAction: %s", ActionFullName, PreResult), true)
             return false
           end
           if PreResult == false then
-            warn(string.format("PetFarmOfficial.AilmentActions.%s: PreCoreAction indicated failure to proceed.", ActionFullName))
+            Log(string.format("PetFarmOfficial.AilmentActions.%s: PreCoreAction indicated failure to proceed.", ActionFullName), true)
             return false
           end
         end
@@ -108,7 +122,7 @@ local function NewAilmentAction(Config)
           return Config.CoreAction(table.unpack(FinalCoreArgs))
         end)
         if not CoreSuccess then
-          warn(string.format("PetFarmOfficial.AilmentActions.%s: Error in CoreAction: %s", ActionFullName, CoreResult))
+          Log(string.format("PetFarmOfficial.AilmentActions.%s: Error in CoreAction: %s", ActionFullName, CoreResult), true)
           return false
         end
         return CoreResult ~= false -- Propagate explicit 'false' from CoreAction, else true
@@ -116,7 +130,7 @@ local function NewAilmentAction(Config)
 
       if WaitForCompletion then
         if not Ad:verify_ailment_exists(PetModel, Config.AilmentName) then
-          print(string.format("AilmentActions.%s: Ailment '%s' not present for pet '%s' before action.", ActionFullName, Config.AilmentName, Ad:get_pet_unique_id_string(PetModel)))
+          Log(string.format("AilmentActions.%s: Ailment '%s' not present for pet '%s' before action.", ActionFullName, Config.AilmentName, Ad:get_pet_unique_id_string(PetModel)))
           return
         end
 
@@ -129,16 +143,16 @@ local function NewAilmentAction(Config)
         )
 
         if not DidAilmentClear then
-          warn(string.format("PetFarmOfficial.AilmentActions.%s: %s", ActionFullName, ResultMessage))
+          Log(string.format("PetFarmOfficial.AilmentActions.%s: %s", ActionFullName, ResultMessage), true)
           if Config.OnTimeoutFailure then
             Config.OnTimeoutFailure(PetModel)
           end
         else
-          print(string.format("PetFarmOfficial.AilmentActions.%s: %s", ActionFullName, ResultMessage))
+          Log(string.format("PetFarmOfficial.AilmentActions.%s: %s", ActionFullName, ResultMessage))
         end
       else
         if not Ad:verify_ailment_exists(PetModel, Config.AilmentName) then
-          print(string.format("AilmentActions.%s: Ailment '%s' not present for pet '%s' before non-awaited action.", ActionFullName, Config.AilmentName, Ad:get_pet_unique_id_string(PetModel)))
+          Log(string.format("AilmentActions.%s: Ailment '%s' not present for pet '%s' before non-awaited action.", ActionFullName, Config.AilmentName, Ad:get_pet_unique_id_string(PetModel)))
           return
         end
 
@@ -148,9 +162,9 @@ local function NewAilmentAction(Config)
         else
           local Success, Result = pcall(CompleteCoreLogic)
           if not Success then
-            warn(string.format("PetFarmOfficial.AilmentActions.%s: Error during non-awaited pcall execution: %s", ActionFullName, tostring(Result)))
+            Log(string.format("PetFarmOfficial.AilmentActions.%s: Error during non-awaited pcall execution: %s", ActionFullName, tostring(Result)), true)
           elseif Result == false then
-            warn(string.format("PetFarmOfficial.AilmentActions.%s: Non-awaited pcall execution indicated failure.", ActionFullName))
+            Log(string.format("PetFarmOfficial.AilmentActions.%s: Non-awaited pcall execution indicated failure.", ActionFullName), true)
           end
         end
       end
@@ -160,13 +174,13 @@ local function NewAilmentAction(Config)
           Config.PostExecutionAction(PetModel)
         end)
         if not PostSuccess then
-          warn(string.format("PetFarmOfficial.AilmentActions.%s: Error in PostExecutionAction: %s", ActionFullName, PostErr))
+          Log(string.format("PetFarmOfficial.AilmentActions.%s: Error in PostExecutionAction: %s", ActionFullName, PostErr), true)
         end
       end
     end)
 
     if not OuterPcallSuccess then
-      warn(string.format("Error setting up or invoking '%s' ailment action: %s", ActionFullName, OuterErrorMessage or "Unknown error"))
+      Log(string.format("Error setting up or invoking '%s' ailment action: %s", ActionFullName, OuterErrorMessage or "Unknown error"), true)
     end
   end
 end
@@ -174,17 +188,17 @@ end
 local function FurnitureCoreAction(PetModel, Config)
   local FurnitureItem = Ad:retrieve_smart_furniture(Config.AilmentName, true, true)
   if not FurnitureItem then
-    warn(string.format("PetFarmOfficial.AilmentActions.%s: No suitable furniture asset found for ailment: %s", Config.AilmentName, Config.AilmentName))
-    warn("Attempting to check at home...")
+    Log(string.format("PetFarmOfficial.AilmentActions.%s: No suitable furniture asset found for ailment: %s", Config.AilmentName, Config.AilmentName), true)
+    Log("Attempting to check at home...", true)
     Ad:go_home()
     task.wait(0.5)
     FurnitureItem = Ad:retrieve_smart_furniture(Config.AilmentName, true, true)
     if not FurnitureItem then
-      warn(string.format("PetFarmOfficial.AilmentActions.%s: No suitable furniture asset found for ailment: %s", Config.AilmentName, Config.AilmentName))
+      Log(string.format("PetFarmOfficial.AilmentActions.%s: No suitable furniture asset found for ailment: %s", Config.AilmentName, Config.AilmentName), true)
       return
     end
   end
-  warn(string.format("PetFarmOfficial.AilmentActions.%s: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", Config.AilmentName, FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"))
+  Log(string.format("PetFarmOfficial.AilmentActions.%s: Attempting to use FurnitureItem '%s' (Model: %s) at character CFrame.", Config.AilmentName, FurnitureItem["name"], FurnitureItem["model"] and FurnitureItem["model"]["Name"] or "N/A"), true)
   Ad:use_sitable_at_character_cframe(FurnitureItem, PetModel)
 end
 
@@ -304,7 +318,7 @@ local AilmentActions = {
           )
         end)
         if not Success then
-          warn("AilmentActions.play: Failed to throw toy:", Result)
+          Log("AilmentActions.play: Failed to throw toy: " .. tostring(Result), true)
         end
         for _ = 1, 40 do -- Wait up to 4 seconds, but break early if task is done
           if not Ad:verify_ailment_exists(PetModel, "play") or (CancelToken and CancelToken.ShouldStop) then break end
@@ -316,7 +330,7 @@ local AilmentActions = {
         Ad.__api.tool.unequip(ToyUnique, {["use_sound_delay"] = false, ["equip_as_last"] = false})
       end)
       if not UnequipSuccess then
-        warn("AilmentActions.play: Failed to unequip toy:", UnequipResult)
+        Log("AilmentActions.play: Failed to unequip toy: " .. tostring(UnequipResult), true)
       end
     end;
   };
@@ -330,7 +344,7 @@ local AilmentActions = {
         Ad.__api.tool.equip(StrollerUnique)
       end)
       if not EquipSuccess then
-        warn("AilmentActions.ride: Failed to equip stroller:", EquipResult)
+        Log("AilmentActions.ride: Failed to equip stroller: " .. tostring(EquipResult), true)
         return
       end
       -- Wait for the stroller tool to appear in the player's character
@@ -342,17 +356,17 @@ local AilmentActions = {
         task.wait(0.1)
       end
       if not StrollerTool then
-        warn("AilmentActions.ride: StrollerTool not found in character after equip.")
+        Log("AilmentActions.ride: StrollerTool not found in character after equip.", true)
         return
       end
       local ModelHandle = StrollerTool:FindFirstChild("ModelHandle")
       if not ModelHandle then
-        warn("AilmentActions.ride: ModelHandle not found in StrollerTool.")
+        Log("AilmentActions.ride: ModelHandle not found in StrollerTool.", true)
         return
       end
       local TouchToSits = ModelHandle:FindFirstChild("TouchToSits")
       if not TouchToSits then
-        warn("AilmentActions.ride: TouchToSits not found in ModelHandle.")
+        Log("AilmentActions.ride: TouchToSits not found in ModelHandle.", true)
         return
       end
       local TouchToSit = nil
@@ -363,20 +377,20 @@ local AilmentActions = {
         end
       end
       if not TouchToSit then
-        warn("AilmentActions.ride: No TouchToSit found in TouchToSits.")
+        Log("AilmentActions.ride: No TouchToSit found in TouchToSits.", true)
         return
       end
       local UseSuccess, UseResult = pcall(function()
         Ad.__api.adopt.use_stroller(LocalPlayer, PetModel, TouchToSit)
       end)
       if not UseSuccess then
-        warn("AilmentActions.ride: Failed to use stroller:", UseResult)
+        Log("AilmentActions.ride: Failed to use stroller: " .. tostring(UseResult), true)
         return
       end
       -- Set humanoid state to jumping until the ride task is over or cancelled
       local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
       if not Humanoid then
-        warn("AilmentActions.ride: Humanoid not found in character.")
+        Log("AilmentActions.ride: Humanoid not found in character.", true)
         return
       end
       while Ad:verify_ailment_exists(PetModel, "ride") and not (CancelToken and CancelToken.ShouldStop) do
@@ -388,7 +402,7 @@ local AilmentActions = {
         Ad.__api.tool.unequip(StrollerUnique, {["use_sound_delay"] = false, ["equip_as_last"] = false})
       end)
       if not UnequipSuccess then
-        warn("AilmentActions.ride: Failed to unequip stroller:", UnequipResult)
+        Log("AilmentActions.ride: Failed to unequip stroller: " .. tostring(UnequipResult), true)
       end
     end;
   };
@@ -401,14 +415,14 @@ local AilmentActions = {
         Ad.__api.adopt.hold_baby(PetModel)
       end)
       if not HoldSuccess then
-        warn("AilmentActions.walk: Failed to hold pet:", HoldError)
+        Log("AilmentActions.walk: Failed to hold pet: " .. tostring(HoldError), true)
         return
       end
       -- Wait for the walk ailment to clear or be cancelled
       local Character = LocalPlayer.Character
       local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
       if not Humanoid then
-        warn("AilmentActions.walk: Humanoid not found in character.")
+        Log("AilmentActions.walk: Humanoid not found in character.", true)
         return
       end
       while Ad:verify_ailment_exists(PetModel, "walk") and not (CancelToken and CancelToken.ShouldStop) do
@@ -420,7 +434,7 @@ local AilmentActions = {
         Ad.__api.adopt.eject_baby(PetModel)
       end)
       if not EjectSuccess then
-        warn("AilmentActions.walk: Failed to drop pet:", EjectError)
+        Log("AilmentActions.walk: Failed to drop pet: " .. tostring(EjectError), true)
       end
     end;
   };
@@ -428,7 +442,7 @@ local AilmentActions = {
     ["AilmentName"] = AILMENTS.MYSTERY;
     ["DefaultTimeout"] = TIMEOUTS.CONSUMABLE;
     ["CoreAction"] = function(PetModel)
-      print("AilmentActions.mystery: Not implemented")
+      Log("AilmentActions.mystery: Not implemented")
     end;
   };
 }
@@ -444,14 +458,14 @@ local AilmentActions = {
 ]]
 -- [[ FUNCTION TO PROCESS TASK PLAN - REVISED ]] --
 -- local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentActions, OriginalAilmentsFlatList)
---   print(string.format("--- Starting Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
+--   Log(string.format("--- Starting Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
 --   if not GeneratedPlan or #GeneratedPlan == 0 then
---     print(string.format("ProcessTaskPlan: No tasks in the generated plan for %s. Initial ailments: [%s]", PetUniqueId, table.concat(OriginalAilmentsFlatList or {}, ", ")))
---     print(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
+--     Log(string.format("ProcessTaskPlan: No tasks in the generated plan for %s. Initial ailments: [%s]", PetUniqueId, table.concat(OriginalAilmentsFlatList or {}, ", ")))
+--     Log(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
 --     return -- Exit early if no plan
 --   end
 
---   print(string.format("  Initial ailments for this plan: [%s]", table.concat(OriginalAilmentsFlatList or {}, ", ")))
+--   Log(string.format("  Initial ailments for this plan: [%s]", table.concat(OriginalAilmentsFlatList or {}, ", ")))
 
 --   -- Initialize SmartFurnitureMap once if needed
 --   if next(Ad.SmartFurnitureMap) == nil then
@@ -472,7 +486,7 @@ local AilmentActions = {
 --         end
 --       end
 
---       print(string.format("    [Task] Starting: %s (type: %s)", tostring(AilmentName), tostring(TaskData.type)))
+--       Log(string.format("    [Task] Starting: %s (type: %s)", tostring(AilmentName), tostring(TaskData.type)))
 --       local ActionTable = AllAilmentActions[AilmentName]
 --       local PotentialAction = typeof(ActionTable) == "table" and ActionTable.Standard or ActionTable
 --       if not PotentialAction or typeof(PotentialAction) ~= "function" then
@@ -490,7 +504,7 @@ local AilmentActions = {
 --       if not Success then
 --         warn(string.format("    Error executing action '%s': %s", AilmentName, tostring(ErrorMessage)))
 --       else
---         print(string.format("    Action completed for: %s", AilmentName))
+--         Log(string.format("    Action completed for: %s", AilmentName))
 --       end
 
 --       if CancelToken then
@@ -524,7 +538,7 @@ local AilmentActions = {
 
 --   -- Checking unresolved ailments
 --   if OriginalAilmentsFlatList and #OriginalAilmentsFlatList > 0 then
---     print(string.format("--- Checking unresolved ailments for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
+--     Log(string.format("--- Checking unresolved ailments for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
 --     local UnresolvedCount = 0
 --     for _, CurrentAilmentName in ipairs(OriginalAilmentsFlatList) do
 --       if Ad:verify_ailment_exists(PetModel, CurrentAilmentName) then
@@ -533,13 +547,13 @@ local AilmentActions = {
 --       end
 --     end
 --     if UnresolvedCount == 0 then
---       print("  All initial ailments for this plan were successfully resolved.")
+--       Log("  All initial ailments for this plan were successfully resolved.")
 --     else
---       print(string.format("  Total unresolved ailments from initial plan: %d", UnresolvedCount))
+--       Log(string.format("  Total unresolved ailments from initial plan: %d", UnresolvedCount))
 --     end
 --   end
 
---   print(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
+--   Log(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel["Name"], PetUniqueId))
 --   return true
 -- end
 -- [[ END FUNCTION TO PROCESS TASK PLAN ]] --
@@ -556,32 +570,32 @@ local AilmentActions = {
 local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentActions, OriginalAilmentsFlatList)
   -- Input Validation
   if not PetUniqueId or typeof(PetUniqueId) ~= "string" then
-    warn("ProcessTaskPlan: Missing or invalid PetUniqueId.")
+    Log("ProcessTaskPlan: Missing or invalid PetUniqueId.", true)
     return false
   end
   if not PetModel or not (typeof(PetModel) == "Instance" and PetModel:IsA("Model")) then
-    warn(string.format("ProcessTaskPlan: Missing or invalid PetModel for %s.", PetUniqueId))
-    warn(PetModel, typeof(PetModel) == "Instance" and PetModel:IsA("Model"))
+    Log(string.format("ProcessTaskPlan: Missing or invalid PetModel for %s.", PetUniqueId), true)
+    Log(string.format("ProcessTaskPlan: PetModel: %s, typeof(PetModel): %s", tostring(PetModel), tostring(typeof(PetModel))), true)
     return false
   end
   if not AllAilmentActions or typeof(AllAilmentActions) ~= "table" then
-    warn(string.format("ProcessTaskPlan: Missing or invalid AllAilmentActions for %s.", PetUniqueId))
+    Log(string.format("ProcessTaskPlan: Missing or invalid AllAilmentActions for %s.", PetUniqueId), true)
     return false
   end
   if not GeneratedPlan then -- Allow empty GeneratedPlan, handled below
-    warn(string.format("ProcessTaskPlan: GeneratedPlan is nil for %s. This is unexpected.", PetUniqueId))
+    Log(string.format("ProcessTaskPlan: GeneratedPlan is nil for %s. This is unexpected.", PetUniqueId), true)
     GeneratedPlan = {} -- Ensure it's a table
   end
 
-  print(string.format("--- Starting Task Plan Execution for Pet: %s (%s) ---", PetModel.Name or "Unknown", PetUniqueId))
+  Log(string.format("--- Starting Task Plan Execution for Pet: %s (%s) ---", PetModel.Name or "Unknown", PetUniqueId))
 
   if #GeneratedPlan == 0 then
-    print(string.format("ProcessTaskPlan: No tasks in the initial generated plan for %s. Initial ailments: [%s]", PetUniqueId, table.concat(OriginalAilmentsFlatList or {}, ", ")))
+    Log(string.format("ProcessTaskPlan: No tasks in the initial generated plan for %s. Initial ailments: [%s]", PetUniqueId, table.concat(OriginalAilmentsFlatList or {}, ", ")))
     -- We might still have ailments to process if OriginalAilmentsFlatList has items
     -- This part of the logic will now try to handle them dynamically.
   end
 
-  print(string.format("  Initial ailments for this plan: [%s]", table.concat(OriginalAilmentsFlatList or {}, ", ")))
+  Log(string.format("  Initial ailments for this plan: [%s]", table.concat(OriginalAilmentsFlatList or {}, ", ")))
 
   -- Initialize SmartFurnitureMap once if needed (assuming Ad is accessible)
   if not Ad.SmartFurnitureMap or next(Ad.SmartFurnitureMap) == nil then
@@ -598,7 +612,7 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
       table.insert(TasksToProcess, TaskData.ailment) -- Store ailment name as the identifier
       TaskDataMap[TaskData.ailment] = TaskData
     else
-      warn(string.format("ProcessTaskPlan: Invalid task data in GeneratedPlan for %s: %s", PetUniqueId, renversement.json.encode(TaskData))) -- Using a JSON encoder for better table logging
+      Log(string.format("ProcessTaskPlan: Invalid task data in GeneratedPlan for %s: %s", PetUniqueId, renversement.json.encode(TaskData)), true) -- Using a JSON encoder for better table logging
     end
   end
 
@@ -616,7 +630,7 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
       -- This could be a dynamically discovered ailment not in the original plan
       -- We need to create a basic taskDetail for it
       if not AllAilmentActions[AilmentName] then
-        warn(string.format("    No action definition found for dynamically discovered ailment '%s'. Marking as failed.", AilmentName))
+        Log(string.format("    No action definition found for dynamically discovered ailment '%s'. Marking as failed.", AilmentName), true)
         Failed[AilmentName] = "No action definition"
         Completed[AilmentName] = true -- Treat as "done" for processing loop, but it failed.
         return
@@ -632,18 +646,18 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
 
     local WaitForAilment = TaskDetail.wait_for_ailment_completion
     if WaitForAilment and not Completed[WaitForAilment] then
-      -- print(string.format("    [Task] '%s' is waiting for '%s' to complete.", AilmentName, WaitForAilment))
+      -- Log(string.format("    [Task] '%s' is waiting for '%s' to complete.", AilmentName, WaitForAilment))
       return -- Dependency not met
     end
 
-    print(string.format("    [Task] Starting: %s (type: %s)", AilmentName, TaskDetail.type or "N/A"))
+    Log(string.format("    [Task] Starting: %s (type: %s)", AilmentName, TaskDetail.type or "N/A"))
     Running[AilmentName] = true -- Mark as trying to run
 
     local ActionTable = AllAilmentActions[AilmentName]
     local PotentialAction = (typeof(ActionTable) == "table" and ActionTable.Standard) or ActionTable
 
     if not PotentialAction or typeof(PotentialAction) ~= "function" then
-      warn(string.format("    No executable action function found for ailment '%s' (TaskType: %s).", AilmentName, TaskDetail.type or "N/A"))
+      Log(string.format("    No executable action function found for ailment '%s' (TaskType: %s).", AilmentName, TaskDetail.type or "N/A"), true)
       Failed[AilmentName] = "No executable action"
       Completed[AilmentName] = true -- Mark as "done" for processing loop
       Running[AilmentName] = nil
@@ -659,10 +673,10 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
     Running[AilmentName] = coroutine.create(function()
       local Success, ErrorMessage = pcall(PotentialAction, PetModel, CancelToken)
       if not Success then
-        warn(string.format("    Error executing action '%s': %s", AilmentName, tostring(ErrorMessage)))
+        Log(string.format("    Error executing action '%s': %s", AilmentName, tostring(ErrorMessage)), true)
         Failed[AilmentName] = tostring(ErrorMessage)
       else
-        print(string.format("    Action completed for: %s", AilmentName))
+        Log(string.format("    Action completed for: %s", AilmentName))
       end
 
       if CancelToken then
@@ -674,7 +688,7 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
     
     local Status, ErrorMessage = coroutine.resume(Running[AilmentName])
     if not Status then
-        warn(string.format("    Coroutine error on initial resume for action '%s': %s", AilmentName, tostring(ErrorMessage)))
+        Log(string.format("    Coroutine error on initial resume for action '%s': %s", AilmentName, tostring(ErrorMessage)), true)
         Failed[AilmentName] = "Coroutine resume error: " .. tostring(ErrorMessage)
         Completed[AilmentName] = true -- Mark as "done"
         Running[AilmentName] = nil
@@ -714,7 +728,7 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
       for _, AilmentName in CurrentPetAilments do
         if not TaskDataMap[AilmentName] and not Completed[AilmentName] and not Failed[AilmentName] then
           if AllAilmentActions[AilmentName] then
-            print(string.format("    [Discovery] New active ailment '%s' found. Adding to processing queue.", AilmentName))
+            Log(string.format("    [Discovery] New active ailment '%s' found. Adding to processing queue.", AilmentName))
             table.insert(TasksToProcess, AilmentName)
             -- Create a basic taskDetail for it so LaunchTask can use it
             TaskDataMap[AilmentName] = {
@@ -723,7 +737,7 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
               wait_for_ailment_completion = nil
             }
           else
-            -- print(string.format("    [Discovery] New active ailment '%s' found, but no action defined in AllAilmentActions.", AilmentName))
+            -- Log(string.format("    [Discovery] New active ailment '%s' found, but no action defined in AllAilmentActions.", AilmentName))
           end
         end
       end
@@ -756,20 +770,20 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
           end
       end
       if AllInitialTasksAccountedFor then
-          print("  All known tasks are completed or have failed.")
+        Log("  All known tasks are completed or have failed.")
           break
       end
     end
 
     -- Break if timeout
     if os.clock() - StartTime > TimeoutSeconds then
-      warn(string.format("ProcessTaskPlan: Timed out waiting for tasks for Pet: %s (%s).", PetModel.Name or "Unknown", PetUniqueId))
+      Log(string.format("ProcessTaskPlan: Timed out waiting for tasks for Pet: %s (%s).", PetModel.Name or "Unknown", PetUniqueId), true)
       -- Potentially try to cancel running tasks
       for AilmentName, Co in Running do
         if Co and coroutine.status(Co) ~= "dead" then
           -- This is tricky. True cancellation needs tasks to check a token.
           -- For now, we just log and abandon.
-          warn(string.format("    Task '%s' was still running at timeout.", AilmentName))
+          Log(string.format("    Task '%s' was still running at timeout.", AilmentName), true)
           -- If a cancel token was given to the task, we could try:
           -- local TaskDetail = taskDataMap[AilmentName]
           -- if taskDetail and taskDetail.cancelToken then taskDetail.cancelToken.ShouldStop = true end
@@ -783,7 +797,7 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
 
   -- Final check for unresolved ailments based on the original list
   if OriginalAilmentsFlatList and #OriginalAilmentsFlatList > 0 then
-    print(string.format("--- Checking unresolved original ailments for Pet: %s (%s) ---", PetModel.Name or "Unknown", PetUniqueId))
+    Log(string.format("--- Checking unresolved original ailments for Pet: %s (%s) ---", PetModel.Name or "Unknown", PetUniqueId))
     local UnresolvedCount = 0
     for _, CurrentAilmentName in OriginalAilmentsFlatList do
       -- Check if the ailment still exists on the pet AND if our system didn't complete it successfully
@@ -796,25 +810,25 @@ local function ProcessTaskPlan(PetUniqueId, PetModel, GeneratedPlan, AllAilmentA
         if not Completed[CurrentAilmentName] or Failed[CurrentAilmentName] then
             UnresolvedCount = UnresolvedCount + 1
             local reason = Failed[CurrentAilmentName] and ("failed with: " .. Failed[CurrentAilmentName]) or "was not completed by the plan or dynamically."
-            warn(string.format("  FLAGGED: Original ailment '%s' for pet '%s' %s", CurrentAilmentName, PetUniqueId, reason))
+            Log(string.format("  FLAGGED: Original ailment '%s' for pet '%s' %s", CurrentAilmentName, PetUniqueId, reason), true)
         elseif not StillExistsOnPet and Completed[CurrentAilmentName] and not Failed[CurrentAilmentName] then
              -- It was completed and it's gone, good.
         elseif StillExistsOnPet and Completed[CurrentAilmentName] and not Failed[CurrentAilmentName] then
             -- Our system thought it completed it, but it's still on the pet.
             -- This indicates the action might not have actually resolved the ailment.
             UnresolvedCount = UnresolvedCount + 1
-            warn(string.format("  FLAGGED: Original ailment '%s' for pet '%s' was marked completed by plan, but still exists on pet.", CurrentAilmentName, PetUniqueId))
+            Log(string.format("  FLAGGED: Original ailment '%s' for pet '%s' was marked completed by plan, but still exists on pet.", CurrentAilmentName, PetUniqueId), true)
         end
       end
     end
     if UnresolvedCount == 0 then
-      print("  All original ailments for this plan were successfully resolved and no longer exist or were handled.")
+      Log("  All original ailments for this plan were successfully resolved and no longer exist or were handled.")
     else
-      print(string.format("  Total unresolved/problematic original ailments: %d", UnresolvedCount))
+      Log(string.format("  Total unresolved/problematic original ailments: %d", UnresolvedCount))
     end
   end
 
-  print(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel.Name or "Unknown", PetUniqueId))
+  Log(string.format("--- Finished Task Plan Execution for Pet: %s (%s) ---", PetModel.Name or "Unknown", PetUniqueId))
   -- Determine overall success. Could be based on whether any tasks failed or timed out.
   -- For now, let's say it's "successful" if it didn't crash, specific task success is logged.
   return true
@@ -823,47 +837,47 @@ end
 
 -- Main loop to monitor _G.PetFarm
 local CurrentInstanceLoopId = HttpService:GenerateGUID(false)
-_G.PetFarmLoopInstanceId = CurrentInstanceLoopId
-print(string.format("PetFarmOfficial.luau loop started with ID: %s. To stop this specific loop instance if script is re-run, simply re-run the script. To pause operations, set _G.PetFarm = false.", CurrentInstanceLoopId))
+getgenv().PetFarmLoopInstanceId = CurrentInstanceLoopId
+Log(string.format("PetFarmOfficial.luau loop started with ID: %s. To stop this specific loop instance if script is re-run, simply re-run the script. To pause operations, set _G.PetFarm = false.", CurrentInstanceLoopId))
 
 Ad:setup_safety_platforms()
 
 local LoopCounter = 0
 local IsEquippedPetsModuleReportingNoPets = false
 
-while _G.PetFarmLoopInstanceId == CurrentInstanceLoopId and task.wait(10) do
+while getgenv().PetFarmLoopInstanceId == CurrentInstanceLoopId and task.wait(10) do
   LoopCounter = LoopCounter + 1
-  if _G.PetFarm == true then
+  if Config.PetFarm == true then
     if LoopCounter % 5 == 0 and not IsEquippedPetsModuleReportingNoPets then 
-      print(string.format("%s - PetFarm is ACTIVE (loop ID: %s, checked at %s)", os.date("%X"), CurrentInstanceLoopId, os.date("%X")))
+      Log(string.format("%s - PetFarm is ACTIVE (loop ID: %s, checked at %s)", os.date("%X"), CurrentInstanceLoopId, os.date("%X")))
     end
 
     local CurrentEquippedPetUniqueIds = Ad:get_my_equipped_pet_uniques()
 
     if #CurrentEquippedPetUniqueIds == 0 then
       if not IsEquippedPetsModuleReportingNoPets then
-        warn(string.format("%s - PetFarm CRITICAL WARNING: EquippedPetsModule is reporting NO equipped pets. All PetFarm operations requiring pet models will be paused until the module provides pet data. (Loop ID: %s)", os.date("%X"), CurrentInstanceLoopId))
+        Log(string.format("%s - PetFarm CRITICAL WARNING: EquippedPetsModule is reporting NO equipped pets. All PetFarm operations requiring pet models will be paused until the module provides pet data. (Loop ID: %s)", os.date("%X"), CurrentInstanceLoopId), true)
         IsEquippedPetsModuleReportingNoPets = true
       elseif LoopCounter % 10 == 0 then 
-        warn(string.format("%s - PetFarm INFO: EquippedPetsModule continues to report NO equipped pets. Operations remain paused. (Loop ID: %s)", os.date("%X"), CurrentInstanceLoopId))
+        Log(string.format("%s - PetFarm INFO: EquippedPetsModule continues to report NO equipped pets. Operations remain paused. (Loop ID: %s)", os.date("%X"), CurrentInstanceLoopId), true)
       end
     else 
       if IsEquippedPetsModuleReportingNoPets then
-        print(string.format("%s - PetFarm INFO: EquippedPetsModule is NOW reporting equipped pets (%d found). Resuming normal operations. (Loop ID: %s)", os.date("%X"), #CurrentEquippedPetUniqueIds, CurrentInstanceLoopId))
+        Log(string.format("%s - PetFarm INFO: EquippedPetsModule is NOW reporting equipped pets (%d found). Resuming normal operations. (Loop ID: %s)", os.date("%X"), #CurrentEquippedPetUniqueIds, CurrentInstanceLoopId))
         IsEquippedPetsModuleReportingNoPets = false 
       end
 
-      -- print(os.date("%X") .. " - DEBUG: Equipped Pet Unique IDs from Module: [" .. table.concat(CurrentEquippedPetUniqueIds, ", ") .. "] (Loop ID: " .. CurrentInstanceLoopId .. ")")
+      -- Log(os.date("%X") .. " - DEBUG: Equipped Pet Unique IDs from Module: [" .. table.concat(CurrentEquippedPetUniqueIds, ", ") .. "] (Loop ID: " .. CurrentInstanceLoopId .. ")")
 
       local AllPetsAilmentsData = Ad:get_current_ailments()
       local PlannerAilmentCategories = TaskPlanner:GetAilmentCategories() 
 
       if #AllPetsAilmentsData > 0 then
-        print(string.format("%s - Raw Detected Pet Ailments Report (Loop ID: %s):", os.date("%X"), CurrentInstanceLoopId))
+        Log(string.format("%s - Raw Detected Pet Ailments Report (Loop ID: %s):", os.date("%X"), CurrentInstanceLoopId))
         for _, PetRawDataEntry in AllPetsAilmentsData do
-          print(string.format("  Pet Unique ID: %s, Ailments: [%s]", PetRawDataEntry["unique"], table.concat(PetRawDataEntry["ailments"], ", ")))
+          Log(string.format("  Pet Unique ID: %s, Ailments: [%s]", PetRawDataEntry["unique"], table.concat(PetRawDataEntry["ailments"], ", ")))
         end
-        print("---") 
+        Log("---") 
 
         for _, PetRawData in AllPetsAilmentsData do
           local PetUniqueId = PetRawData["unique"]
@@ -871,17 +885,17 @@ while _G.PetFarmLoopInstanceId == CurrentInstanceLoopId and task.wait(10) do
           local ShouldProcessPet = true 
 
           if not PetModel then
-            warn(string.format("PetFarm: Pet '%s' has ailments but its model was not found via EquippedPetsModule. Attempting to equip... (Loop ID: %s)", PetUniqueId, CurrentInstanceLoopId))
+            Log(string.format("PetFarm: Pet '%s' has ailments but its model was not found via EquippedPetsModule. Attempting to equip... (Loop ID: %s)", PetUniqueId, CurrentInstanceLoopId), true)
             Ad.__api.tool.equip(PetUniqueId, {["use_sound_delay"] = false, ["equip_as_last"] = false})
             task.wait(3) 
 
             PetModel = Ad:get_pet_model_by_unique_id(PetUniqueId) 
 
             if not PetModel then
-              warn(string.format("PetFarm: Failed to retrieve model for pet '%s' after equip attempt, or module did not update. Skipping plan for this pet. (Loop ID: %s)", PetUniqueId, CurrentInstanceLoopId))
+              Log(string.format("PetFarm: Failed to retrieve model for pet '%s' after equip attempt, or module did not update. Skipping plan for this pet. (Loop ID: %s)", PetUniqueId, CurrentInstanceLoopId), true)
               ShouldProcessPet = false 
             else
-              print(string.format("PetFarm: Successfully re-acquired model for pet '%s' after equip attempt. (Loop ID: %s)", PetUniqueId, CurrentInstanceLoopId))
+              Log(string.format("PetFarm: Successfully re-acquired model for pet '%s' after equip attempt. (Loop ID: %s)", PetUniqueId, CurrentInstanceLoopId))
             end
           end
 
@@ -914,7 +928,7 @@ while _G.PetFarmLoopInstanceId == CurrentInstanceLoopId and task.wait(10) do
             end
 
             if TaskPlanner and PlanFormatter then
-              print(string.format("Generating plan for Pet: %s (Loop ID: %s)", PetDataForPlanner["unique"], CurrentInstanceLoopId))
+              Log(string.format("Generating plan for Pet: %s (Loop ID: %s)", PetDataForPlanner["unique"], CurrentInstanceLoopId))
               local GeneratedPlan = TaskPlanner:GenerateTaskPlan(PetDataForPlanner, true)
               PlanFormatter.Print(GeneratedPlan, PetDataForPlanner["unique"], PlannerAilmentCategories)
 
@@ -922,30 +936,30 @@ while _G.PetFarmLoopInstanceId == CurrentInstanceLoopId and task.wait(10) do
                 ProcessTaskPlan(PetDataForPlanner["unique"], PetModel, GeneratedPlan, AilmentActions, PetRawData["ailments"])
               end)
               if not Success then
-                warn(string.format("Error processing task plan for pet '%s': %s", PetDataForPlanner["unique"], ErrorMessage))
+                Log(string.format("Error processing task plan for pet '%s': %s", PetDataForPlanner["unique"], ErrorMessage), true)
               end
             else
-              warn(string.format("TaskPlanner or PlanFormatter not loaded correctly. Cannot generate or print plan. (Loop ID: %s)", CurrentInstanceLoopId))
+              Log(string.format("TaskPlanner or PlanFormatter not loaded correctly. Cannot generate or print plan. (Loop ID: %s)", CurrentInstanceLoopId), true)
             end
           end
         end
 
       else
         if LoopCounter % 10 == 0 then 
-          print(string.format("%s - No current pet ailments detected for any pet (and module is reporting pets). (Loop ID: %s)", os.date("%X"), CurrentInstanceLoopId))
+          Log(string.format("%s - No current pet ailments detected for any pet (and module is reporting pets). (Loop ID: %s)", os.date("%X"), CurrentInstanceLoopId))
         end
       end
     end 
   else
     if LoopCounter % 30 == 0 then 
-      print(string.format("%s - PetFarm is INACTIVE (loop ID: %s, checked at %s)", os.date("%X"), CurrentInstanceLoopId, os.date("%X")))
+      Log(string.format("%s - PetFarm is INACTIVE (loop ID: %s, checked at %s)", os.date("%X"), CurrentInstanceLoopId, os.date("%X")))
     end
   end
 end
 
-if _G.PetFarmLoopInstanceId ~= CurrentInstanceLoopId then
-  print(string.format("PetFarmOfficial.luau loop with ID: %s stopping as a new instance has started (new active ID: %s).", CurrentInstanceLoopId, tostring(_G.PetFarmLoopInstanceId)))
+if getgenv().PetFarmLoopInstanceId ~= CurrentInstanceLoopId then
+  Log(string.format("PetFarmOfficial.luau loop with ID: %s stopping as a new instance has started (new active ID: %s).", CurrentInstanceLoopId, tostring(getgenv().PetFarmLoopInstanceId)))
   return
 end
 
-print(string.format("PetFarmOfficial.luau loop with ID: %s stopping. If _G.PetFarmLoopInstanceId was manually cleared or script execution ended, this is expected.", CurrentInstanceLoopId))
+Log(string.format("PetFarmOfficial.luau loop with ID: %s stopping. If _G.PetFarmLoopInstanceId was manually cleared or script execution ended, this is expected.", CurrentInstanceLoopId))
