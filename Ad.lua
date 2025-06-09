@@ -8,7 +8,7 @@ local SharedConstants = require(ReplicatedStorage["ClientDB"]["SharedConstants"]
 
 local EquippedPetsModule = (function()
   if (not Fsys) then
-    warn("Fsys module loader not found in ReplicatedStorage. EquippedPets module cannot be loaded.")
+    Log("Fsys module loader not found in ReplicatedStorage. EquippedPets module cannot be loaded.", true)
     return nil
   end
 
@@ -17,15 +17,21 @@ local EquippedPetsModule = (function()
   end)
 
   if (not LoadSuccess or not Module) then
-    warn("Failed to load EquippedPets module:", Module)
+    Log("Failed to load EquippedPets module: " .. tostring(Module), true)
     return nil
   end
 
-  print("EquippedPets module loaded successfully.")
+  Log("EquippedPets module loaded successfully.")
   return Module
 end)()
 
 local Ad = {["SmartFurnitureMap"] = {}}
+local Config = getgenv().Config
+
+local function Log(Message, IsWarning)
+  if not Config.Debug then return end
+  (IsWarning and warn or print)(Message)
+end
 
 do -- Initialize API
   local API = ReplicatedStorage:WaitForChild("API")
@@ -216,7 +222,7 @@ function Ad:get_default_throw_toy_unique()
 
   local Toys = PlayerData["inventory"].toys
   if not Toys then
-    warn("get_default_throw_toy_unique: Could not access player toy inventory.")
+    Log("get_default_throw_toy_unique: Could not access player toy inventory.", true)
     return nil
   end
 
@@ -225,7 +231,7 @@ function Ad:get_default_throw_toy_unique()
       return UniqueId
     end
   end
-  warn("get_default_throw_toy_unique: Could not find 'squeaky_bone_default' in toy inventory.")
+  Log("get_default_throw_toy_unique: Could not find 'squeaky_bone_default' in toy inventory.", true)
   return nil
 end
 
@@ -243,7 +249,7 @@ function Ad:get_default_stroller_unique()
   if not PlayerData then return end
   local Strollers = PlayerData["inventory"] and PlayerData["inventory"].strollers
   if not Strollers then
-    warn("get_default_stroller_unique: Could not access player stroller inventory.")
+    Log("get_default_stroller_unique: Could not access player stroller inventory.", true)
     return nil
   end
   for UniqueId, Info in Strollers do
@@ -251,7 +257,7 @@ function Ad:get_default_stroller_unique()
       return UniqueId
     end
   end
-  warn("get_default_stroller_unique: Could not find 'stroller-default' in stroller inventory.")
+  Log("get_default_stroller_unique: Could not find 'stroller-default' in stroller inventory.", true)
   return nil
 end
 
@@ -262,7 +268,7 @@ end
 ]]
 function Ad:get_pet_unique_id_string(PetModel)
   if (not PetModel) then
-    warn("GetPetUniqueIdString: Called with a nil PetModel.")
+    Log("GetPetUniqueIdString: Called with a nil PetModel.", true)
     return "stub_pet_unique_id_error"
   end
 
@@ -274,12 +280,12 @@ function Ad:get_pet_unique_id_string(PetModel)
           if (Wrapper["pet_unique"] and typeof(Wrapper["pet_unique"]) == "string") then
             return Wrapper["pet_unique"]
           else
-            warn(string.format("GetPetUniqueIdString: PetModel '%s' found in EquippedPetsModule, but its 'pet_unique' property is missing or not a string. Trying other methods.", PetModel["Name"] or "Unnamed"))
+            Log(string.format("GetPetUniqueIdString: PetModel '%s' found in EquippedPetsModule, but its 'pet_unique' property is missing or not a string. Trying other methods.", PetModel["Name"] or "Unnamed"), true)
           end
         end
       end
     else
-      warn("GetPetUniqueIdString: EquippedPetsModule.get_my_equipped_char_wrappers() returned nil or an empty list. Cannot check module for ID.")
+      Log("GetPetUniqueIdString: EquippedPetsModule.get_my_equipped_char_wrappers() returned nil or an empty list. Cannot check module for ID.", true)
     end
   end
 
@@ -292,7 +298,7 @@ function Ad:get_pet_unique_id_string(PetModel)
     PetIdentifierDescription = string.format("PetModel (type: %s, tostring: %s)", typeof(PetModel), tostring(PetModel))
   end
 
-  warn(string.format("GetPetUniqueIdString: Could not determine a string unique ID for %s using any available method.", PetIdentifierDescription))
+  Log(string.format("GetPetUniqueIdString: Could not determine a string unique ID for %s using any available method.", PetIdentifierDescription), true)
   return "stub_pet_unique_id_error"
 end
 
@@ -305,7 +311,7 @@ end
 ]]
 function Ad:get_furniture_unique_id_from_model(ActualFurnitureModel, FunctionContextName, ParentContainerForContext)
   if not ActualFurnitureModel then
-    warn(string.format("%s: Called GetFurnitureUniqueIdFromModel with a nil ActualFurnitureModel.", FunctionContextName))
+    Log(string.format("%s: Called GetFurnitureUniqueIdFromModel with a nil ActualFurnitureModel.", FunctionContextName), true)
     return nil, nil
   end
 
@@ -317,12 +323,12 @@ function Ad:get_furniture_unique_id_from_model(ActualFurnitureModel, FunctionCon
   if (FurnitureUniqueId and typeof(FurnitureUniqueId) == "string") then
     IdSource = "attribute (furniture_unique on model)"
   else
-    warn(string.format("%s: Model '%s' in container '%s' is missing 'furniture_unique' string attribute. Falling back to model name.", FunctionContextName, ActualFurnitureModel["Name"] or "UnnamedModel", ContainerNameForWarning))
+    Log(string.format("%s: Model '%s' in container '%s' is missing 'furniture_unique' string attribute. Falling back to model name.", FunctionContextName, ActualFurnitureModel["Name"] or "UnnamedModel", ContainerNameForWarning), true)
     FurnitureUniqueId = ActualFurnitureModel["Name"]
     if (typeof(FurnitureUniqueId) == "string") then
       IdSource = "model_name (fallback)"
     else
-      warn(string.format("%s: Model '%s' in container '%s' also has an invalid non-string model name. Cannot derive ID.", FunctionContextName, ActualFurnitureModel["Name"] or "UnnamedModel", ContainerNameForWarning))
+      Log(string.format("%s: Model '%s' in container '%s' also has an invalid non-string model name. Cannot derive ID.", FunctionContextName, ActualFurnitureModel["Name"] or "UnnamedModel", ContainerNameForWarning), true)
       FurnitureUniqueId = nil
       IdSource = nil
     end
@@ -358,13 +364,13 @@ end
 function Ad:find_first_ailment_furniture(AilmentName)
   local Keywords = AILMENT_KEYWORDS_MAP[AilmentName]
   if not Keywords then
-    warn("FindFirstAilmentFurniture: No keywords defined for ailment: " .. AilmentName)
+    Log("FindFirstAilmentFurniture: No keywords defined for ailment: " .. AilmentName, true)
     return nil
   end
 
   local FurnitureFolder = workspace["HouseInteriors"] and workspace["HouseInteriors"]:FindFirstChild("furniture")
   if not FurnitureFolder then
-    warn("FindFirstAilmentFurniture: workspace.HouseInteriors.furniture not found.")
+    Log("FindFirstAilmentFurniture: workspace.HouseInteriors.furniture not found.", true)
     return nil
   end
 
@@ -380,8 +386,8 @@ function Ad:find_first_ailment_furniture(AilmentName)
               if string.find(LowercaseActualModelName, string.lower(Keyword)) then
                 local VacantSeatInstance = self:get_vacant_seat_from_model(ActualFurnitureModel)
 
-                warn(string.format("FindFirstAilmentFurniture: Found generic furniture. UniqueID: '%s' (source: %s), ModelName (actual): '%s', Container: '%s', For Ailment: '%s', Keyword: '%s', VacantSeat: %s",
-                  FurnitureUniqueId, IdSource, ActualFurnitureModel["Name"], ContainerFolderInstance["Name"], AilmentName, Keyword, VacantSeatInstance and VacantSeatInstance["Name"] or "nil"))
+                Log(string.format("FindFirstAilmentFurniture: Found generic furniture. UniqueID: '%s' (source: %s), ModelName (actual): '%s', Container: '%s', For Ailment: '%s', Keyword: '%s', VacantSeat: %s",
+                  FurnitureUniqueId, IdSource, ActualFurnitureModel["Name"], ContainerFolderInstance["Name"], AilmentName, Keyword, VacantSeatInstance and VacantSeatInstance["Name"] or "nil"), true)
 
                 return {
                   ["name"] = FurnitureUniqueId;
@@ -396,7 +402,7 @@ function Ad:find_first_ailment_furniture(AilmentName)
     end
   end
 
-  warn("FindFirstAilmentFurniture: No suitable owned furniture found for ailment: " .. AilmentName .. " (matching keywords, with a valid unique ID from model attribute or model name, and correct model structure).")
+  Log("FindFirstAilmentFurniture: No suitable owned furniture found for ailment: " .. AilmentName .. " (matching keywords, with a valid unique ID from model attribute or model name, and correct model structure).", true)
   return nil
 end
 
@@ -408,17 +414,17 @@ end
 ]]
 function Ad:verify_ailment_exists(PetModel, AilmentName)
   if (not PetModel) then
-    warn("VerifyAilmentExists: PetModel is nil.")
+    Log("VerifyAilmentExists: PetModel is nil.", true)
     return false
   end
   if (not AilmentName) then
-    warn("VerifyAilmentExists: AilmentName is nil.")
+    Log("VerifyAilmentExists: AilmentName is nil.", true)
     return false
   end
 
   local PetUniqueId = self:get_pet_unique_id_string(PetModel)
   if (not PetUniqueId or PetUniqueId == "stub_pet_unique_id_error") then
-    warn("VerifyAilmentExists: Could not get a valid Unique ID for PetModel: " .. PetModel["Name"] .. ". Cannot verify ailment.")
+    Log("VerifyAilmentExists: Could not get a valid Unique ID for PetModel: " .. PetModel["Name"] .. ". Cannot verify ailment.", true)
     return false
   end
 
@@ -426,7 +432,7 @@ function Ad:verify_ailment_exists(PetModel, AilmentName)
   if not PlayerData then return false end
 
   if (not PlayerData["ailments_manager"] or not PlayerData["ailments_manager"]["ailments"]) then
-    warn("VerifyAilmentExists: Could not find ailment data path for LocalPlayer ('" .. LocalPlayer["Name"] .. "') in ClientData.")
+    Log("VerifyAilmentExists: Could not find ailment data path for LocalPlayer ('" .. LocalPlayer["Name"] .. "') in ClientData.", true)
     return false
   end
 
@@ -454,7 +460,7 @@ function Ad:get_smart_furniture()
   local FoundItems = {}
   local FurnitureFolder = workspace["HouseInteriors"] and workspace["HouseInteriors"]:FindFirstChild("furniture")
   if (not FurnitureFolder) then
-    warn("GetSmartFurniture: workspace.HouseInteriors.furniture not found!")
+    Log("GetSmartFurniture: workspace.HouseInteriors.furniture not found!", true)
     return FoundItems
   end
 
@@ -467,7 +473,7 @@ function Ad:get_smart_furniture()
 
       if not (ParentContainer and ParentContainer["Parent"] == FurnitureFolder) then
         local ContainerNameForContext = ParentContainer and ParentContainer["Name"] or "N/A (Parent not found or no name)"
-        warn(string.format("GetSmartFurniture: Smart furniture model '%s' (searched as '%s') found, but its parent ('%s') is not a direct container in FurnitureFolder. Skipping for ailment '%s'.", ActualFurnitureModel["Name"], ModelNameKey, ContainerNameForContext, Ailment))
+        Log(string.format("GetSmartFurniture: Smart furniture model '%s' (searched as '%s') found, but its parent ('%s') is not a direct container in FurnitureFolder. Skipping for ailment '%s'.", ActualFurnitureModel["Name"], ModelNameKey, ContainerNameForContext, Ailment), true)
       else
         local FurnitureUniqueId, IdSource = self:get_furniture_unique_id_from_model(ActualFurnitureModel, "GetSmartFurniture", ParentContainer)
 
@@ -479,10 +485,10 @@ function Ad:get_smart_furniture()
             ["model"] = ActualFurnitureModel;
             ["vacant_seat"] = VacantSeatInstance;
           }
-          print(string.format("GetSmartFurniture: Found/processed smart furniture. UniqueID: '%s' (source: %s), Model: '%s'. For ailment '%s'. Searched for: %s", FurnitureUniqueId, IdSource, ActualFurnitureModel["Name"], Ailment, ModelNameKey))
+          Log(string.format("GetSmartFurniture: Found/processed smart furniture. UniqueID: '%s' (source: %s), Model: '%s'. For ailment '%s'. Searched for: %s", FurnitureUniqueId, IdSource, ActualFurnitureModel["Name"], Ailment, ModelNameKey))
         else
           local ContainerNameForWarn = ParentContainer and ParentContainer["Name"] or "UnknownContainer"
-          warn(string.format("GetSmartFurniture: Could not derive Unique ID for smart model '%s' (container: '%s') for ailment '%s'. It will not be registered as smart furniture.", ActualFurnitureModel["Name"] or "UnnamedModel", ContainerNameForWarn, Ailment))
+          Log(string.format("GetSmartFurniture: Could not derive Unique ID for smart model '%s' (container: '%s') for ailment '%s'. It will not be registered as smart furniture.", ActualFurnitureModel["Name"] or "UnnamedModel", ContainerNameForWarn, Ailment), true)
         end
       end
     end
@@ -501,15 +507,15 @@ function Ad:initialize_smart_furniture()
   if (PlayerData and PlayerData["money"]) then
     CurrentMoney = PlayerData["money"]
   else
-    warn("InitializeSmartFurniture: Could not retrieve player money from ClientData. Cannot perform cost checks.")
+    Log("InitializeSmartFurniture: Could not retrieve player money from ClientData. Cannot perform cost checks.", true)
   end
   if (not FurnitureDB) then
-    warn("InitializeSmartFurniture: FurnitureDB module not found or failed to load. Cannot perform cost checks or determine item costs.")
+    Log("InitializeSmartFurniture: FurnitureDB module not found or failed to load. Cannot perform cost checks or determine item costs.", true)
   end
   local CurrentSmartFurnitureItems = self:get_smart_furniture()
   local FurnitureFolder = workspace["HouseInteriors"] and workspace["HouseInteriors"]:FindFirstChild("furniture")
   if (not FurnitureFolder) then
-    warn("InitializeSmartFurniture: workspace.HouseInteriors.furniture not found! Cannot process smart furniture.")
+    Log("InitializeSmartFurniture: workspace.HouseInteriors.furniture not found! Cannot process smart furniture.", true)
     self.SmartFurnitureMap = CurrentSmartFurnitureItems
     return
   end
@@ -527,18 +533,18 @@ function Ad:initialize_smart_furniture()
           Cost = ItemDBInfo["cost"]
           if (CurrentMoney < Cost) then
             CanAfford = false
-            warn(string.format("InitializeSmartFurniture: Cannot afford '%s' (model: %s) for ailment '%s'. Cost: %d, Player Money: %d.", KindName, ModelName, Ailment, Cost, CurrentMoney))
+            Log(string.format("InitializeSmartFurniture: Cannot afford '%s' (model: %s) for ailment '%s'. Cost: %d, Player Money: %d.", KindName, ModelName, Ailment, Cost, CurrentMoney), true)
           end
         else
-          warn(string.format("InitializeSmartFurniture: Could not find cost information for '%s' (model: %s) in FurnitureDB. Assuming it's free or data is missing.", KindName, ModelName))
+          Log(string.format("InitializeSmartFurniture: Could not find cost information for '%s' (model: %s) in FurnitureDB. Assuming it's free or data is missing.", KindName, ModelName), true)
         end
       elseif (CurrentMoney == nil and FurnitureDB and FurnitureDB[KindName] and FurnitureDB[KindName]["cost"] and FurnitureDB[KindName]["cost"] > 0) then
-        warn(string.format("InitializeSmartFurniture: Player money not available, but '%s' (model: %s) has a cost in DB. Purchase might fail.", KindName, ModelName))
+        Log(string.format("InitializeSmartFurniture: Player money not available, but '%s' (model: %s) has a cost in DB. Purchase might fail.", KindName, ModelName), true)
       end
       if (CanAfford) then
         table.insert(ItemsToBuy, { ["kind"] = KindName; ["properties"] = { cframe = CFrame.new(0, -1000, 0) }; })
         ItemKindsToModelNames[KindName] = ModelName
-        warn(string.format("InitializeSmartFurniture: Queuing purchase for '%s' (model: %s, cost: %d) for ailment '%s'. Player Money: %s", KindName, ModelName, Cost, Ailment, CurrentMoney or 'Unknown'))
+        Log(string.format("InitializeSmartFurniture: Queuing purchase for '%s' (model: %s, cost: %d) for ailment '%s'. Player Money: %s", KindName, ModelName, Cost, Ailment, CurrentMoney or 'Unknown'), true)
       end
     end
   end
@@ -547,7 +553,7 @@ function Ad:initialize_smart_furniture()
       Ad.__api.housing.buy_furnitures(ItemsToBuy)
     end)
     if (not Success) then
-      warn(string.format("InitializeSmartFurniture: Error purchasing furniture: %s", tostring(ErrorMessage)))
+      Log(string.format("InitializeSmartFurniture: Error purchasing furniture: %s", tostring(ErrorMessage)), true)
       self.SmartFurnitureMap = CurrentSmartFurnitureItems
       return
     end
@@ -558,7 +564,7 @@ function Ad:initialize_smart_furniture()
       Ad.__api.housing.push_furniture_changes({})
     end)
     if (not Success) then
-      warn(string.format("InitializeSmartFurniture: Error pushing furniture changes: %s", ErrorMessage or "Unknown error"))
+      Log(string.format("InitializeSmartFurniture: Error pushing furniture changes: %s", ErrorMessage or "Unknown error"), true)
     end
 
     task.wait()
@@ -572,7 +578,7 @@ function Ad:initialize_smart_furniture()
 
           if not (ParentContainer and ParentContainer["Parent"] == FurnitureFolder) then
             local ContainerNameForContext = ParentContainer and ParentContainer["Name"] or "N/A (Parent not found or no name)"
-            warn(string.format("InitializeSmartFurniture: Found purchased model '%s' (Kind: %s), but its parent structure is unexpected ('%s' is not in FurnitureFolder). Cannot add to smart map.", ActualNewFurnitureModel["Name"] or "UnnamedModel", BoughtItemInfo["kind"], ContainerNameForContext))
+            Log(string.format("InitializeSmartFurniture: Found purchased model '%s' (Kind: %s), but its parent structure is unexpected ('%s' is not in FurnitureFolder). Cannot add to smart map.", ActualNewFurnitureModel["Name"] or "UnnamedModel", BoughtItemInfo["kind"], ContainerNameForContext), true)
           else
             local FurnitureUniqueId, IdSource = self:get_furniture_unique_id_from_model(ActualNewFurnitureModel, "InitializeSmartFurniture", ParentContainer)
 
@@ -590,17 +596,17 @@ function Ad:initialize_smart_furniture()
                 if ActualNewFurnitureModel["Name"] == CurrentModelNameFromMap and not CurrentSmartFurnitureItems[AilmentInner] then
                   CurrentSmartFurnitureItems[AilmentInner] = FurnitureObject
                   local ContainerNameForLog = ParentContainer and ParentContainer["Name"] or "UnknownContainer"
-                  warn(string.format("InitializeSmartFurniture: Successfully processed purchased item '%s' (UniqueID from %s: '%s', Container: '%s') for ailment '%s'.", ActualNewFurnitureModel["Name"] or "UnnamedModel", IdSource or "N/A", FurnitureUniqueId, ContainerNameForLog, AilmentInner))
+                  Log(string.format("InitializeSmartFurniture: Successfully processed purchased item '%s' (UniqueID from %s: '%s', Container: '%s') for ailment '%s'.", ActualNewFurnitureModel["Name"] or "UnnamedModel", IdSource or "N/A", FurnitureUniqueId, ContainerNameForLog, AilmentInner), true)
                   break
                 end
               end
             else
               local ContainerNameForWarn = ParentContainer and ParentContainer["Name"] or "UnknownContainer"
-              warn(string.format("InitializeSmartFurniture: Could not derive a Unique ID for purchased model '%s' (Kind: %s, Container: '%s') after attribute/name check. Cannot add to smart map.", ActualNewFurnitureModel["Name"] or "UnnamedModel", BoughtItemInfo["kind"], ContainerNameForWarn))
+              Log(string.format("InitializeSmartFurniture: Could not derive a Unique ID for purchased model '%s' (Kind: %s, Container: '%s') after attribute/name check. Cannot add to smart map.", ActualNewFurnitureModel["Name"] or "UnnamedModel", BoughtItemInfo["kind"], ContainerNameForWarn), true)
             end
           end
         else
-          warn(string.format("InitializeSmartFurniture: Failed to find purchased item model '%s' (kind: %s) recursively in workspace after buying.", ModelNameToFind, BoughtItemInfo["kind"]))
+          Log(string.format("InitializeSmartFurniture: Failed to find purchased item model '%s' (kind: %s) recursively in workspace after buying.", ModelNameToFind, BoughtItemInfo["kind"]), true)
         end
       end
     end
@@ -630,7 +636,7 @@ function Ad:teleport_to_ailment_location(Location)
   end)
 
   if (not Success) then
-    warn(string.format("Error teleporting to %s: %s", Location, ErrorMessage or "Unknown error"))
+    Log(string.format("Error teleporting to %s: %s", Location, ErrorMessage or "Unknown error"), true)
   end
 end
 
@@ -640,7 +646,7 @@ end
 ]]
 function Ad:is_sitable_owned(SitableFurnitureObject)
   if (not SitableFurnitureObject or not SitableFurnitureObject["name"] or not SitableFurnitureObject["model"]) then
-    warn(string.format("is_sitable_owned: Invalid arguments. SitableFurnitureObject: %s", tostring(SitableFurnitureObject)))
+    Log(string.format("is_sitable_owned: Invalid arguments. SitableFurnitureObject: %s", tostring(SitableFurnitureObject)), true)
     return
   end
   local ParentName = SitableFurnitureObject["model"].Parent.Name
@@ -659,14 +665,14 @@ end
 ]]
 function Ad:place_sitable_at_cframe(SitableFurnitureObject, TargetCFrame)
   if (not SitableFurnitureObject or not SitableFurnitureObject["name"] or not SitableFurnitureObject["model"] or not TargetCFrame) then
-    warn(string.format("PlaceSitableAtCFrame: Invalid arguments. SitableFurnitureObject: %s, TargetCFrame: %s", tostring(SitableFurnitureObject), tostring(TargetCFrame)))
+    Log(string.format("PlaceSitableAtCFrame: Invalid arguments. SitableFurnitureObject: %s, TargetCFrame: %s", tostring(SitableFurnitureObject), tostring(TargetCFrame)), true)
     return
   end
   local Success, ErrorMessage = pcall(function()
     Ad.__api.housing.push_furniture_changes({{unique = SitableFurnitureObject["name"], cframe = TargetCFrame}})
   end)
   if (not Success) then
-    warn(string.format("PlaceSitableAtCFrame: Error placing furniture: %s", ErrorMessage or "Unknown error"))
+    Log(string.format("PlaceSitableAtCFrame: Error placing furniture: %s", ErrorMessage or "Unknown error"), true)
   end
 end
 
@@ -678,7 +684,7 @@ end
 ]]
 function Ad:use_sitable_at_cframe(SitableFurnitureObject, TargetCFrame, PetModel)
   if (not SitableFurnitureObject or not SitableFurnitureObject["name"] or not SitableFurnitureObject["model"] or not TargetCFrame or not PetModel) then
-    warn(string.format("UseSitableAtCFrame: Invalid arguments. SitableFurnitureObject: %s, TargetCFrame: %s, PetModel: %s", tostring(SitableFurnitureObject), tostring(TargetCFrame), tostring(PetModel)))
+    Log(string.format("UseSitableAtCFrame: Invalid arguments. SitableFurnitureObject: %s, TargetCFrame: %s, PetModel: %s", tostring(SitableFurnitureObject), tostring(TargetCFrame), tostring(PetModel)), true)
     return
   end
 
@@ -691,7 +697,7 @@ function Ad:use_sitable_at_cframe(SitableFurnitureObject, TargetCFrame, PetModel
     Ad.__api.housing.activate_furniture(LocalPlayer, SitableFurnitureObject["name"], SeatToUse, {["cframe"] = TargetCFrame}, PetModel)
   end)
   if (not Success) then
-    warn(string.format("UseSitableAtCFrame: Error activating furniture: %s", ErrorMessage or "Unknown error"))
+    Log(string.format("UseSitableAtCFrame: Error activating furniture: %s", ErrorMessage or "Unknown error"), true)
   end
 end
 
@@ -703,7 +709,7 @@ end
 ]]
 function Ad:place_and_use_sitable_at_cframe(SitableFurnitureObject, TargetCFrame, PetModel)
   if (not SitableFurnitureObject or not SitableFurnitureObject["name"] or not SitableFurnitureObject["model"] or not TargetCFrame) then
-    warn(string.format("PlaceAndUseSitableAtCFrame: Invalid arguments. SitableFurnitureObject: %s, TargetCFrame: %s", tostring(SitableFurnitureObject), tostring(TargetCFrame)))
+    Log(string.format("PlaceAndUseSitableAtCFrame: Invalid arguments. SitableFurnitureObject: %s, TargetCFrame: %s", tostring(SitableFurnitureObject), tostring(TargetCFrame)), true)
     return
   end
 
@@ -711,7 +717,7 @@ function Ad:place_and_use_sitable_at_cframe(SitableFurnitureObject, TargetCFrame
     Ad.__api.housing.push_furniture_changes({{unique = SitableFurnitureObject["name"], cframe = TargetCFrame}})
   end)
   if (not Success) then
-    warn(string.format("PlaceAndUseSitableAtCFrame: Error placing furniture: %s", ErrorMessage or "Unknown error"))
+    Log(string.format("PlaceAndUseSitableAtCFrame: Error placing furniture: %s", ErrorMessage or "Unknown error"), true)
   end
 
   task.wait()
@@ -724,7 +730,7 @@ function Ad:place_and_use_sitable_at_cframe(SitableFurnitureObject, TargetCFrame
     Ad.__api.housing.activate_furniture(LocalPlayer, SitableFurnitureObject["name"], SeatToUse, {["cframe"] = TargetCFrame}, PetModel)
   end)
   if (not Success) then
-    warn(string.format("PlaceAndUseSitableAtCFrame: Error activating furniture: %s", ErrorMessage or "Unknown error"))
+    Log(string.format("PlaceAndUseSitableAtCFrame: Error activating furniture: %s", ErrorMessage or "Unknown error"), true)
   end
 end
 
@@ -735,12 +741,12 @@ end
 ]]
 function Ad:use_sitable_at_character_cframe(SitableFurnitureObject, PetModel)
   if (not SitableFurnitureObject or not SitableFurnitureObject["name"] or not SitableFurnitureObject["model"] or not PetModel) then
-    warn(string.format("UseSitableAtCharacterCFrame: Invalid arguments. SitableFurnitureObject: %s, PetModel: %s", tostring(SitableFurnitureObject), tostring(PetModel)))
+    Log(string.format("UseSitableAtCharacterCFrame: Invalid arguments. SitableFurnitureObject: %s, PetModel: %s", tostring(SitableFurnitureObject), tostring(PetModel)), true)
     return
   end
 
   if (not LocalPlayer["Character"] or not LocalPlayer["Character"]:FindFirstChild("HumanoidRootPart")) then
-    warn("UseSitableAtCharacterCFrame: LocalPlayer.Character.HumanoidRootPart not found. Cannot determine target CFrame.")
+    Log("UseSitableAtCharacterCFrame: LocalPlayer.Character.HumanoidRootPart not found. Cannot determine target CFrame.", true)
     return
   end
   local TargetCFrame = LocalPlayer["Character"]["HumanoidRootPart"]["CFrame"]
@@ -750,12 +756,12 @@ function Ad:use_sitable_at_character_cframe(SitableFurnitureObject, PetModel)
     SeatToUse = SitableFurnitureObject["vacant_seat"]["Name"]
   end
 
-  warn(string.format("UseSitableAtCharacterCFrame: Activating furniture '%s' (Seat: '%s') at player CFrame for Pet: '%s'", SitableFurnitureObject["name"], SeatToUse, PetModel["Name"]))
+  Log(string.format("UseSitableAtCharacterCFrame: Activating furniture '%s' (Seat: '%s') at player CFrame for Pet: '%s'", SitableFurnitureObject["name"], SeatToUse, PetModel["Name"]), true)
   local Success, ErrorMessage = pcall(function()
     Ad.__api.housing.activate_furniture(LocalPlayer, SitableFurnitureObject["name"], SeatToUse, {["cframe"] = TargetCFrame}, PetModel)
   end)
   if (not Success) then
-    warn(string.format("UseSitableAtCharacterCFrame: Error activating furniture: %s", ErrorMessage or "Unknown error"))
+    Log(string.format("UseSitableAtCharacterCFrame: Error activating furniture: %s", ErrorMessage or "Unknown error"), true)
   end
 end
 
@@ -791,7 +797,7 @@ function Ad:handle_main_map_ailment(AilmentTargetCFrame, PetModel)
     Ad.__api.adopt.hold_baby(PetModel)
   end)
   if (not Success) then
-    warn("handle_main_map_ailment: Failed to hold pet:", ErrorMessage or "Unknown error")
+    Log("handle_main_map_ailment: Failed to hold pet: " .. (ErrorMessage or "Unknown error"), true)
     return
   end
 
@@ -799,7 +805,7 @@ function Ad:handle_main_map_ailment(AilmentTargetCFrame, PetModel)
 
   local Character = LocalPlayer["Character"]
   if (not Character or not Character:FindFirstChild("HumanoidRootPart")) then
-    warn("handle_main_map_ailment: LocalPlayer.Character.HumanoidRootPart not found. Cannot move to target CFrame.")
+    Log("handle_main_map_ailment: LocalPlayer.Character.HumanoidRootPart not found. Cannot move to target CFrame.", true)
     return
   end
 
@@ -820,7 +826,7 @@ end
 function Ad:get_player_data()
   local PlayerData = ClientData.get_data()[LocalPlayer["Name"]]
   if not PlayerData then
-    warn("Ad:get_player_data: Failed to retrieve PlayerData")
+    Log("Ad:get_player_data: Failed to retrieve PlayerData", true)
   end
   return PlayerData
 end
@@ -839,12 +845,12 @@ end
   ```
 ]]
 function Ad:purchase_and_consume_item(PetModel, ItemName)
-  if (not PetModel) then warn("purchase_and_consume_item: PetModel is nil.") return false end
-  if (not ItemName or typeof(ItemName) ~= "string") then warn("purchase_and_consume_item: ItemName is invalid.") return false end
+  if (not PetModel) then Log("purchase_and_consume_item: PetModel is nil.", true) return false end
+  if (not ItemName or typeof(ItemName) ~= "string") then Log("purchase_and_consume_item: ItemName is invalid.", true) return false end
 
   local PetUniqueId = self:get_pet_unique_id_string(PetModel)
   if (not PetUniqueId or PetUniqueId == "stub_pet_unique_id_error") then
-    warn("purchase_and_consume_item: Could not get a valid unique ID for PetModel.")
+    Log("purchase_and_consume_item: Could not get a valid unique ID for PetModel.", true)
     return false
   end
 
@@ -855,7 +861,7 @@ function Ad:purchase_and_consume_item(PetModel, ItemName)
     return Ad.__api.shop.buy_item(Category, ItemName, {})
   end)
   if (not BuySuccess) then
-    warn("purchase_and_consume_item: Failed to purchase item:", BuyResult)
+    Log("purchase_and_consume_item: Failed to purchase item: " .. tostring(BuyResult), true)
     return false
   end
 
@@ -867,7 +873,7 @@ function Ad:purchase_and_consume_item(PetModel, ItemName)
   local Inventory = PlayerData["inventory"]
   local ItemTable = Inventory[Category]
   if (not ItemTable) then
-    warn("purchase_and_consume_item: Inventory category not found:", Category)
+    Log("purchase_and_consume_item: Inventory category not found: " .. tostring(Category), true)
     return false
   end
 
@@ -880,7 +886,7 @@ function Ad:purchase_and_consume_item(PetModel, ItemName)
     end
   end
   if (not FoundUniqueId) then
-    warn("purchase_and_consume_item: Could not find purchased item in inventory:", ItemName)
+    Log("purchase_and_consume_item: Could not find purchased item in inventory: " .. tostring(ItemName), true)
     return false
   end
 
@@ -895,7 +901,7 @@ function Ad:purchase_and_consume_item(PetModel, ItemName)
     )
   end)
   if (not CreateSuccess) then
-    warn("purchase_and_consume_item: Failed to create item object:", CreateResult)
+    Log("purchase_and_consume_item: Failed to create item object: " .. tostring(CreateResult), true)
     return false
   end
 
@@ -903,7 +909,7 @@ function Ad:purchase_and_consume_item(PetModel, ItemName)
     Ad.__api.pet_object.consume_food_object(Instance.new("Model", nil), PetUniqueId)
   end)
   if (not ConsumeSuccess) then
-    warn("purchase_and_consume_item: Failed to fire consume event:", ConsumeResult)
+    Log("purchase_and_consume_item: Failed to fire consume event: " .. tostring(ConsumeResult), true)
     return false
   end
 
@@ -926,12 +932,12 @@ function Ad:execute_action_with_timeout(PetModel, AilmentName, TimeoutDurationSe
   local CoroutineResumeSuccess, WasActionPcallSuccessful, ActionPcallResultOrError = coroutine.resume(ActionCoroutine)
 
   if not CoroutineResumeSuccess then
-    warn(string.format("ExecuteActionWithTimeout: Coroutine for action '%s' failed to resume: %s", AilmentName, tostring(WasActionPcallSuccessful))) -- Second arg is error if resume fails
+    Log(string.format("ExecuteActionWithTimeout: Coroutine for action '%s' failed to resume: %s", AilmentName, tostring(WasActionPcallSuccessful)), true) -- Second arg is error if resume fails
     return false, "Coroutine resume failure: " .. tostring(WasActionPcallSuccessful)
   end
 
   if not WasActionPcallSuccessful then
-    warn(string.format("ExecuteActionWithTimeout: ActionLambda for '%s' (pcall inside coroutine) failed: %s", AilmentName, tostring(ActionPcallResultOrError)))
+    Log(string.format("ExecuteActionWithTimeout: ActionLambda for '%s' (pcall inside coroutine) failed: %s", AilmentName, tostring(ActionPcallResultOrError)), true)
     -- Decide if we should still wait for ailment clearance. For now, let's assume an action error means it likely won't clear as expected.
     -- However, the original script often waits even if the action has issues, so we'll proceed with waiting but acknowledge the error.
   end
@@ -950,7 +956,7 @@ function Ad:execute_action_with_timeout(PetModel, AilmentName, TimeoutDurationSe
       local ExtraSuccess, ExtraResult = pcall(OptionalExtraConditionFn)
       ExtraConditionMet = ExtraSuccess and ExtraResult
       if not ExtraSuccess then
-        warn(string.format("ExecuteActionWithTimeout: Error in OptionalExtraConditionFn for '%s': %s", AilmentName, tostring(ExtraResult)))
+        Log(string.format("ExecuteActionWithTimeout: Error in OptionalExtraConditionFn for '%s': %s", AilmentName, tostring(ExtraResult)), true)
       end
     end
 
@@ -977,7 +983,7 @@ function Ad:execute_action_with_timeout(PetModel, AilmentName, TimeoutDurationSe
   if TimedOut then
     local CoroutineStatus = coroutine.status(ActionCoroutine)
     if CoroutineStatus ~= "dead" then
-      warn(string.format("ExecuteActionWithTimeout: Action coroutine for '%s' is still '%s' after timeout. It may complete or be stuck if it doesn't yield.", AilmentName, CoroutineStatus))
+      Log(string.format("ExecuteActionWithTimeout: Action coroutine for '%s' is still '%s' after timeout. It may complete or be stuck if it doesn't yield.", AilmentName, CoroutineStatus), true)
     end
   end
 
@@ -993,7 +999,7 @@ function Ad:get_current_ailments()
   local PetAilmentsResult = {}
 
   if (not PlayerData or not PlayerData["ailments_manager"] or not PlayerData["ailments_manager"]["ailments"]) then
-    warn("GetCurrentAilments: Could not find ailment data for LocalPlayer ('" .. LocalPlayer["Name"] .. "') in ClientData. Structure might be unexpected or data not yet available.")
+    Log(string.format("GetCurrentAilments: Could not find ailment data for LocalPlayer ('%s') in ClientData. Structure might be unexpected or data not yet available.", LocalPlayer["Name"]), true)
     return PetAilmentsResult
   end
 
@@ -1026,12 +1032,12 @@ end
 ]]
 function Ad:get_pet_model_by_unique_id(PetUniqueIdToFind) 
   if not EquippedPetsModule then
-    warn("GetPetModelByUniqueId: EquippedPetsModule is not loaded. Cannot fetch pet model.")
+    Log("GetPetModelByUniqueId: EquippedPetsModule is not loaded. Cannot fetch pet model.", true)
     return nil
   end
 
   if not PetUniqueIdToFind then
-    warn("GetPetModelByUniqueId: PetUniqueIdToFind is nil.")
+    Log("GetPetModelByUniqueId: PetUniqueIdToFind is nil.", true)
     return nil
   end
 
@@ -1044,12 +1050,12 @@ function Ad:get_pet_model_by_unique_id(PetUniqueIdToFind)
     if PetModel and PetModel:IsA("Model") then
       return PetModel
     else
-      warn("GetPetModelByUniqueId: Wrapper found for " .. PetUniqueIdToFind .. ", but .char (PetModel) is missing or not a Model.")
+      Log(string.format("GetPetModelByUniqueId: Wrapper found for %s, but .char (PetModel) is missing or not a Model.", PetUniqueIdToFind), true)
       return nil
     end
   else
     -- print(string.format("DEBUG: GetPetModelByUniqueId: Wrapper NOT FOUND for ID: %s", tostring(PetUniqueIdToFind)))
-    warn("GetPetModelByUniqueId: No wrapper found for unique ID: " .. PetUniqueIdToFind .. ". Pet might not be equipped or ID is invalid.")
+    Log(string.format("GetPetModelByUniqueId: No wrapper found for unique ID: %s. Pet might not be equipped or ID is invalid.", PetUniqueIdToFind), true)
     return nil
   end
 end
@@ -1060,7 +1066,7 @@ end
 ]]
 function Ad:get_my_equipped_pet_models()
   if not EquippedPetsModule then
-    warn("GetMyEquippedPetModels: EquippedPetsModule is not loaded. Cannot fetch pet models.")
+    Log("GetMyEquippedPetModels: EquippedPetsModule is not loaded. Cannot fetch pet models.", true)
     return {}
   end
 
@@ -1078,9 +1084,9 @@ function Ad:get_my_equipped_pet_models()
     else
       local PetUniqueId = Wrapper["pet_unique"]
       if PetUniqueId then
-        warn("GetMyEquippedPetModels: Wrapper found for unique:", PetUniqueId, "- but pet model (char) is missing or invalid.")
+        Log(string.format("GetMyEquippedPetModels: Wrapper found for unique: %s - but pet model (char) is missing or invalid.", tostring(PetUniqueId)), true)
       else
-        warn("GetMyEquippedPetModels: Wrapper found but pet model (char) is missing/invalid and no unique ID on wrapper.")
+        Log("GetMyEquippedPetModels: Wrapper found but pet model (char) is missing/invalid and no unique ID on wrapper.", true)
       end
     end
   end
@@ -1093,7 +1099,7 @@ end
 ]]
 function Ad:get_my_equipped_pet_uniques()
   if not EquippedPetsModule then
-    warn("GetMyEquippedPetUniques: EquippedPetsModule is not loaded. Cannot fetch pet unique IDs.")
+    Log("GetMyEquippedPetUniques: EquippedPetsModule is not loaded. Cannot fetch pet unique IDs.", true)
     return {}
   end
 
@@ -1117,7 +1123,7 @@ function Ad:get_my_equipped_pet_uniques()
     if PetUniqueId and type(PetUniqueId) == "string" then
       table.insert(PetUniqueIds, PetUniqueId)
     else
-      warn("GetMyEquippedPetUniques: Wrapper found but pet_unique ID is missing or not a string.")
+      Log("GetMyEquippedPetUniques: Wrapper found but pet_unique ID is missing or not a string.", true)
     end
   end
   return PetUniqueIds
@@ -1140,7 +1146,7 @@ function Ad:setup_safety_platforms()
 
   local function CreatePlatformIfMissing(Name, TargetPosition)
     if not TargetPosition then
-      warn("SetupSafetyPlatforms: Cannot create platform '", Name, "' because TargetPosition is nil.")
+      Log(string.format("SetupSafetyPlatforms: Cannot create platform '%s' because TargetPosition is nil.", tostring(Name)), true)
       return
     end
 
@@ -1163,7 +1169,7 @@ function Ad:setup_safety_platforms()
     -- Center the platform at TargetPosition, with the top surface at TargetPosition.Y
     Platform.Position = Vector3.new(TargetPosition.X, TargetPosition.Y - (PlatformSize.Y / 2), TargetPosition.Z)
     Platform.Parent = SafetyPlatformsFolder
-    print(string.format("SetupSafetyPlatforms: Created platform '%s'. Target Position: %s, Platform Position: %s", Name, tostring(TargetPosition), tostring(Platform.Position)))
+    Log(string.format("SetupSafetyPlatforms: Created platform '%s'. Target Position: %s, Platform Position: %s", Name, tostring(TargetPosition), tostring(Platform.Position)))
   end
 
   local ParkStaticMap = workspace:FindFirstChild("StaticMap")
@@ -1172,56 +1178,56 @@ function Ad:setup_safety_platforms()
     if ParkTarget and ParkTarget:FindFirstChild("BoredAilmentTarget") and ParkTarget.BoredAilmentTarget:IsA("BasePart") then
       CreatePlatformIfMissing("SafetyPlatform_Park", ParkTarget.BoredAilmentTarget.Position)
     else
-      warn("SetupSafetyPlatforms: Could not find StaticMap.Park.BoredAilmentTarget Position or it's not a BasePart.")
+      Log("SetupSafetyPlatforms: Could not find StaticMap.Park.BoredAilmentTarget Position or it's not a BasePart.", true)
     end
     local BeachTarget = ParkStaticMap:FindFirstChild("Beach")
     if BeachTarget and BeachTarget:FindFirstChild("BeachPartyAilmentTarget") and BeachTarget.BeachPartyAilmentTarget:IsA("BasePart") then
       CreatePlatformIfMissing("SafetyPlatform_Beach", BeachTarget.BeachPartyAilmentTarget.Position)
     else
-      warn("SetupSafetyPlatforms: Could not find StaticMap.Beach.BeachPartyAilmentTarget Position or it's not a BasePart.")
+      Log("SetupSafetyPlatforms: Could not find StaticMap.Beach.BeachPartyAilmentTarget Position or it's not a BasePart.", true)
     end
     local CampsiteTarget = ParkStaticMap:FindFirstChild("Campsite")
     if CampsiteTarget and CampsiteTarget:FindFirstChild("CampsiteOrigin") and CampsiteTarget.CampsiteOrigin:IsA("BasePart") then
       CreatePlatformIfMissing("SafetyPlatform_Campsite", CampsiteTarget.CampsiteOrigin.Position)
     else
-      warn("SetupSafetyPlatforms: Could not find StaticMap.Campsite.CampsiteOrigin Position or it's not a BasePart.")
+      Log("SetupSafetyPlatforms: Could not find StaticMap.Campsite.CampsiteOrigin Position or it's not a BasePart.", true)
     end
   else
-    warn("SetupSafetyPlatforms: Could not find StaticMap.")
+    Log("SetupSafetyPlatforms: Could not find StaticMap.", true)
   end
 
   if not (LocalPlayer and LocalPlayer.Name) then
-    warn("SetupSafetyPlatforms: LocalPlayer or LocalPlayer.Name not available for Home platform.")
+    Log("SetupSafetyPlatforms: LocalPlayer or LocalPlayer.Name not available for Home platform.", true)
     return
   end
 
   local HouseInteriors = workspace:FindFirstChild("HouseInteriors")
   if not HouseInteriors then
-    warn("SetupSafetyPlatforms: Could not find HouseInteriors folder.")
+    Log("SetupSafetyPlatforms: Could not find HouseInteriors folder.", true)
     return
   end
 
   local BlueprintFolder = HouseInteriors:FindFirstChild("blueprint")
   if not BlueprintFolder then
-    warn("SetupSafetyPlatforms: Could not find HouseInteriors.blueprint folder.")
+    Log("SetupSafetyPlatforms: Could not find HouseInteriors.blueprint folder.", true)
     return
   end
 
   local PlayerHouseBlueprint = BlueprintFolder:FindFirstChild(LocalPlayer.Name)
   if not PlayerHouseBlueprint then
-    warn("SetupSafetyPlatforms: Could not find PlayerHouseBlueprint for player: ", LocalPlayer.Name)
+    Log(string.format("SetupSafetyPlatforms: Could not find PlayerHouseBlueprint for player: %s", tostring(LocalPlayer.Name)), true)
     return
   end
 
   local FloorsFolder = PlayerHouseBlueprint:FindFirstChild("Floors")
   if not FloorsFolder then
-    warn("SetupSafetyPlatforms: Could not find FloorsFolder for player: ", LocalPlayer.Name)
+    Log(string.format("SetupSafetyPlatforms: Could not find FloorsFolder for player: %s", tostring(LocalPlayer.Name)), true)
     return
   end
 
   local FloorParts = FloorsFolder:GetChildren()
   if #FloorParts == 0 or not FloorParts[1]:IsA("BasePart") then
-    warn("SetupSafetyPlatforms: Could not find suitable floor part for player: ", LocalPlayer.Name)
+    Log(string.format("SetupSafetyPlatforms: Could not find suitable floor part for player: %s", tostring(LocalPlayer.Name)), true)
     return
   end
 
@@ -1236,11 +1242,7 @@ local IgnoreGoHome = false
   @return boolean -- true if the process was initiated, false if failed
 ]]
 function Ad:go_home()
-  if IgnoreGoHome then
-    print("DEBUG: Skipping go_home()")
-    return true
-  end
-  print("Ad:go_home() Attempting to go home")
+  Log("Ad:go_home() Attempting to go home")
   local Success, ErrorMessage = pcall(function()
     Ad.__api.pet.exit_furniture_use_states()
     Ad.__api.housing.subscribe_to_house(LocalPlayer)
@@ -1248,10 +1250,10 @@ function Ad:go_home()
     Ad.__api.housing.push_furniture_changes({})
   end)
   if (not Success) then
-    warn(string.format("Ad:go_home() Error: %s", ErrorMessage or "Unknown error"))
+    Log(string.format("Ad:go_home() Error: %s", ErrorMessage or "Unknown error"), true)
     return false
   end
-  print("Ad:go_home() Successfully went home")
+  Log("Ad:go_home() Successfully went home")
   return true
 end
 
@@ -1273,7 +1275,7 @@ end
 ]]
 function Ad:retrieve_smart_furniture(AilmentName, PurchaseIfNotFound, FallbackToAnyFurniture)
   if not AilmentName or type(AilmentName) ~= "string" then
-    warn("retrieve_smart_furniture: Invalid AilmentName argument.")
+    Log("retrieve_smart_furniture: Invalid AilmentName argument.", true)
     return nil
   end
 
@@ -1283,7 +1285,7 @@ function Ad:retrieve_smart_furniture(AilmentName, PurchaseIfNotFound, FallbackTo
     FurnitureItem = self.SmartFurnitureMap[AilmentName]
   end
   if not FurnitureItem and FallbackToAnyFurniture then
-    warn(string.format("retrieve_smart_furniture: SmartFurnitureMap does NOT have '%s' entry. Trying find_first_ailment_furniture.", AilmentName))
+    Log(string.format("retrieve_smart_furniture: SmartFurnitureMap does NOT have '%s' entry. Trying find_first_ailment_furniture.", AilmentName), true)
     FurnitureItem = self:find_first_ailment_furniture(AilmentName)
   end
   return FurnitureItem
